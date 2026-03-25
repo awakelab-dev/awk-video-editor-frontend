@@ -1,28 +1,25 @@
 import { create } from 'zustand'
-import type { SelectionSource } from '../types/editor'
+import type { MediaSlice } from './mediaSlice'
+import { createMediaSlice } from './mediaSlice'
+import type { PlaybackSlice } from './playbackSlice'
+import { createPlaybackSlice } from './playbackSlice'
+import type { ProjectSlice } from './projectSlice'
+import { createProjectSlice } from './projectSlice'
+import type { SelectionSlice } from './selectionSlice'
+import { createSelectionSlice } from './selectionSlice'
+import type { TracksSlice } from './tracksSlice'
+import { createTracksSlice } from './tracksSlice'
 
-type EditorStore = {
-  selectedElementId: string | null
-  selectionSource: SelectionSource
-  currentTime: number
-  isPlaying: boolean
-  zoomLevel: number
-  selectElement: (id: string, source: Exclude<SelectionSource, null>) => void
-  clearSelection: () => void
-  seek: (time: number) => void
-  setZoom: (zoom: number) => void
-  togglePlayback: () => void
-}
+export type EditorStore = SelectionSlice &
+  MediaSlice &
+  TracksSlice &
+  ProjectSlice &
+  PlaybackSlice
 
-export const useEditorStore = create<EditorStore>((set) => ({
-  selectedElementId: null,
-  selectionSource: null,
-  currentTime: 0,
-  isPlaying: false,
-  zoomLevel: 100,
-  selectElement: (id, source) => set({ selectedElementId: id, selectionSource: source }),
-  clearSelection: () => set({ selectedElementId: null, selectionSource: null }),
-  seek: (time) => set({ currentTime: time }),
-  setZoom: (zoom) => set({ zoomLevel: zoom }),
-  togglePlayback: () => set((state) => ({ isPlaying: !state.isPlaying })),
+export const useEditorStore = create<EditorStore>((set, get, store) => ({
+  ...createSelectionSlice(set, get, store),
+  ...createMediaSlice(set, get, store),
+  ...createTracksSlice(set, get, store),
+  ...createProjectSlice(set, get, store),
+  ...createPlaybackSlice(set, get, store),
 }))
