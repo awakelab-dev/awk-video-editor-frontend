@@ -136,8 +136,8 @@ export function TimelinePanel() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="w-[180px] shrink-0 overflow-y-auto border-r border-[#2a2a34] pt-7 max-[1440px]:w-[165px] max-[1280px]:w-[150px] max-[1024px]:w-[130px]">
+      <div className="flex min-h-0 flex-1 overflow-y-auto">
+        <div className="w-[180px] shrink-0 border-r border-[#2a2a34] pt-7 max-[1440px]:w-[165px] max-[1280px]:w-[150px] max-[1024px]:w-[130px]">
           {trackHeaders.map((track) => (
             <div
               className="group flex h-[38px] items-center gap-2 border-b border-white/[0.03] px-2.5 max-[1024px]:h-[34px]"
@@ -175,7 +175,7 @@ export function TimelinePanel() {
           ))}
         </div>
 
-        <div className="min-w-0 flex-1 overflow-auto">
+        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-visible">
           <div className="relative min-w-[1100px]">
             <div className="sticky top-0 z-[5] h-7 border-b border-[#2a2a34] bg-[#1e1e26]">
               {marks.map((mark, index) => (
