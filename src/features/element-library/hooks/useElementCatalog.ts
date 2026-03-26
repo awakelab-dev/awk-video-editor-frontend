@@ -1,0 +1,42 @@
+import { useMemo, useState } from 'react'
+import type { ElementLibraryCategory, ElementLibraryItem } from '../types'
+
+const catalog: ElementLibraryItem[] = [
+  { id: 'media-1', name: 'intro_final.mp4', duration: '00:45', type: 'video', category: 'media' },
+  { id: 'media-2', name: 'escena_01.mp4', duration: '01:22', type: 'video', category: 'media' },
+  { id: 'media-3', name: 'overlay.png', type: 'image', category: 'media' },
+  { id: 'media-4', name: 'logo_marca.svg', type: 'image', category: 'media' },
+  { id: 'media-5', name: 'musica_fondo.mp3', duration: '03:05', type: 'audio', category: 'audio' },
+  { id: 'media-6', name: 'sfx_transicion.wav', duration: '00:12', type: 'audio', category: 'audio' },
+  { id: 'text-1', name: 'Título grande', type: 'text', category: 'text', description: 'H1 bold' },
+  { id: 'text-2', name: 'Subtítulo', type: 'text', category: 'text', description: 'H2 medium' },
+  { id: 'text-3', name: 'Lower third', type: 'text', category: 'text', description: 'Lower third preset' },
+  { id: 'shape-1', name: 'Rectángulo', type: 'shape', category: 'shapes' },
+  { id: 'shape-2', name: 'Círculo', type: 'shape', category: 'shapes' },
+  { id: 'shape-3', name: 'Fondo gradiente', type: 'shape', category: 'shapes' },
+  { id: 'transition-1', name: 'Fade', type: 'transition', category: 'transitions' },
+  { id: 'transition-2', name: 'Wipe', type: 'transition', category: 'transitions' },
+]
+
+export function useElementCatalog(additionalItems: ElementLibraryItem[] = []) {
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<ElementLibraryCategory>('media')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return [...additionalItems, ...catalog].filter((item) => {
+      const matchesCategory = item.category === category
+      const matchesQuery = q.length === 0 || item.name.toLowerCase().includes(q)
+      return matchesCategory && matchesQuery
+    })
+  }, [additionalItems, category, query])
+
+  return {
+    category,
+    setCategory,
+    query,
+    setQuery,
+    items: filtered,
+    total: filtered.length,
+  }
+}
