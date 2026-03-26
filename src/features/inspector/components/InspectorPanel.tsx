@@ -51,6 +51,15 @@ type SelectedTextContext = {
   element: TextElement
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function opacityToPercent(opacity: number) {
+  const safeOpacity = Number.isFinite(opacity) ? opacity : 1
+  return safeOpacity <= 1 ? Math.round(clamp(safeOpacity, 0, 1) * 100) : Math.round(clamp(safeOpacity, 0, 100))
+}
+
 function findSelectedTextContext(selectedElementId: string | null, tracks: ReturnType<typeof useEditorStore.getState>['tracks']): SelectedTextContext | null {
   if (!selectedElementId) {
     return null
@@ -81,6 +90,7 @@ export function InspectorPanel() {
   )
 
   const selectedTextElement = selectedTextContext?.element ?? null
+  const selectedOpacityPercent = selectedTextElement ? opacityToPercent(selectedTextElement.opacity) : 100
 
   const updateSelectedTextProperty = <K extends keyof TextElement>(
     property: K,
@@ -196,12 +206,20 @@ export function InspectorPanel() {
                 className="w-full"
                 max={100}
                 min={0}
-                onChange={handleNumericPropertyChange('opacity')}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value)
+
+                  if (!Number.isFinite(nextPercent)) {
+                    return
+                  }
+
+                  updateSelectedTextProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                }}
                 type="range"
-                value={selectedTextElement.opacity}
+                value={selectedOpacityPercent}
               />
               <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
-                {selectedTextElement.opacity}%
+                {selectedOpacityPercent}%
               </span>
             </PropertyRow>
           </PropertySection>
