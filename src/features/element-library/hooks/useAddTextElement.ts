@@ -1,12 +1,80 @@
 import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import type { TextElement, Track } from '../../../shared/types/editor'
+import type { TextPreset } from '../types'
 
 const TEXT_TRACK_ID = 'track-text'
 const TEXT_TRACK_NAME = 'Textos'
 
-function buildTextElement(sequence: number): TextElement {
-  const name = sequence === 0 ? 'Texto' : `Texto${sequence}`
+const TEXT_PRESET_CONFIG: Record<
+  TextPreset,
+  {
+    label: string
+    text: string
+    fontSize: number
+    fontWeight: number
+    textAlign: TextElement['textAlign']
+    y: number
+    x: number
+    width: number
+    backgroundColor: string
+  }
+> = {
+  title: {
+    label: 'Título grande',
+    text: 'Título grande',
+    fontSize: 72,
+    fontWeight: 800,
+    textAlign: 'center',
+    y: 160,
+    x: 240,
+    width: 960,
+    backgroundColor: 'transparent',
+  },
+  subtitle: {
+    label: 'Subtítulo',
+    text: 'Subtítulo',
+    fontSize: 48,
+    fontWeight: 600,
+    textAlign: 'center',
+    y: 280,
+    x: 260,
+    width: 920,
+    backgroundColor: 'transparent',
+  },
+  'lower-third': {
+    label: 'Lower third',
+    text: 'Nombre Apellido',
+    fontSize: 36,
+    fontWeight: 700,
+    textAlign: 'left',
+    y: 420,
+    x: 120,
+    width: 640,
+    backgroundColor: '#111827cc',
+  },
+  body: {
+    label: 'Texto básico',
+    text: 'Este es un texto de ejemplo.',
+    fontSize: 32,
+    fontWeight: 500,
+    textAlign: 'left',
+    y: 320,
+    x: 220,
+    width: 880,
+    backgroundColor: 'transparent',
+  },
+}
+
+type AddTextOptions = {
+  preset?: TextPreset
+  label?: string
+}
+
+function buildTextElement(sequence: number, { preset = 'title', label }: AddTextOptions): TextElement {
+  const config = TEXT_PRESET_CONFIG[preset]
+  const baseLabel = label ?? config.label
+  const name = sequence === 0 ? baseLabel : `${baseLabel} ${sequence + 1}`
   const id =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `text-${Date.now()}-${sequence}`
 
@@ -17,20 +85,20 @@ function buildTextElement(sequence: number): TextElement {
     startTime: 0,
     duration: 5,
     opacity: 1,
-    x: 480,
-    y: 270,
-    width: 960,
+    x: config.x,
+    y: config.y,
+    width: config.width,
     height: 200,
     rotation: 0,
-    text: name,
+    text: label ?? config.text,
     fontFamily: 'Inter',
-    fontSize: 64,
-    fontWeight: 700,
+    fontSize: config.fontSize,
+    fontWeight: config.fontWeight,
     textColor: '#ffffff',
-    backgroundColor: 'transparent',
+    backgroundColor: config.backgroundColor,
     lineHeight: 1.1,
     letterSpacing: 0,
-    textAlign: 'center',
+    textAlign: config.textAlign,
   }
 }
 
@@ -48,17 +116,21 @@ export function useAddTextElement() {
   const addElement = useEditorStore((state) => state.addElement)
   const selectElement = useEditorStore((state) => state.selectElement)
 
-  return useCallback(() => {
-    let textTrack = tracks.find((track) => track.id === TEXT_TRACK_ID)
-    if (!textTrack) {
-      textTrack = createTextTrack()
-      createTrack(textTrack)
-    }
+  const addText = useCallback(
+    (options: AddTextOptions = {}) => {
+      let textTrack = tracks.find((track) => track.id === TEXT_TRACK_ID)
+      if (!textTrack) {
+        textTrack = createTextTrack()
+        createTrack(textTrack)
+      }
+      const sequence = textTrack.elements.filter((element) => element.type === 'text').length
+      const element = buildTextElement(sequence, options)
+      addElement(textTrack.id, element)
+      selectElement(element.id, 'element-library')
+      return element
+    },
+    [tracks, createTrack, addElement, selectElement],
+  )
 
-    const sequence = textTrack.elements.filter((element) => element.type === 'text').length
-    const element = buildTextElement(sequence)
-    addElement(textTrack.id, element)
-    selectElement(element.id, 'element-library')
-    return element
-  }, [tracks, createTrack, addElement, selectElement])
+  return addText
 }

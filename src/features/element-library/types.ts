@@ -1,5 +1,7 @@
 export type ElementLibraryCategory = 'media' | 'text' | 'shapes' | 'audio' | 'transitions'
 
+export type TextPreset = 'title' | 'subtitle' | 'lower-third' | 'body'
+
 export type ElementLibraryItemType = 'video' | 'image' | 'audio' | 'text' | 'shape' | 'transition'
 
 export interface ElementLibraryItem {
@@ -10,4 +12,5 @@ export interface ElementLibraryItem {
   duration?: string
   thumbnail?: string
   description?: string
+  textPreset?: TextPreset
 }

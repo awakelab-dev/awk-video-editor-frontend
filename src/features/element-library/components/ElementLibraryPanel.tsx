@@ -40,26 +40,21 @@ export function ElementLibraryPanel() {
   const addTextElement = useAddTextElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [lastPresetId, setLastPresetId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const importAsset = useEditorStore((state) => state.importAsset)
-  const selectedElementId = useEditorStore((state) => state.selectedElementId)
 
-  function handleAddText() {
-    trackEvent('text_add_clicked', { source: 'element-library' })
-    const element = addTextElement()
-    console.log('[ElementLibrary] text element workflow', {
-      actions: ['trackEvent(text_add_clicked)', 'addTextElement()', 'setFeedback()', 'clearFeedback(timeout)'],
+  function handleAddTextPreset(item: ElementLibraryItem) {
+    if (!item.textPreset) return
+    trackEvent('text_preset_added', { source: 'element-library', preset: item.textPreset, itemId: item.id })
+    const element = addTextElement({ preset: item.textPreset, label: item.name })
+    console.log('[ElementLibrary] text preset workflow', {
+      preset: item.textPreset,
+      templateId: item.id,
       element,
     })
-    const textItem: ElementLibraryItem = {
-      id: element.id,
-      type: 'text',
-      category: 'text',
-      name: element.name,
-      description: 'Texto creado desde la biblioteca',
-    }
-    setUploadedItems((prev) => [textItem, ...prev.filter((item) => item.id !== element.id)])
-    setFeedback(`Texto añadido (${element.name})`)
+    setLastPresetId(item.id)
+    setFeedback(`${item.name} añadido al lienzo`)
     window.setTimeout(() => setFeedback(null), 2000)
   }
   const emptyStateLabel = useMemo(() => {
@@ -112,31 +107,16 @@ export function ElementLibraryPanel() {
           />
         </label>
 
-        {category === 'text' && (
-          <div className="border-b border-[#2a2a34] bg-[#1c1c25] px-3 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold text-white">Añadir texto</p>
-                <p className="text-[10px] text-[#9ca3af]">Crea títulos y subtítulos en cualquier momento.</p>
-              </div>
-              <button
-                className="rounded-[6px] bg-[#4c1d95] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#5b21b6]"
-                onClick={handleAddText}
-                type="button"
-              >
-                + Texto
-              </button>
-            </div>
-            {feedback && (
-              <p className="pt-2 text-[10px] text-[#c4b5fd]" role="status">
-                {feedback}
-              </p>
-            )}
-          </div>
-        )}
-
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {feedback && (
+            <div
+              aria-live="assertive"
+              className="mb-2 rounded-[6px] border border-[#4338ca] bg-[#312e81] px-3 py-2 text-[11px] text-[#ede9fe]"
+            >
+              {feedback}
+            </div>
+          )}
           {total === 0 ? (
             <div className="flex h-full items-center justify-center rounded-md border border-dashed border-[#2a2a34] bg-[#1e1e24] text-xs text-[#6b7280]">
               {emptyStateLabel}
@@ -144,30 +124,36 @@ export function ElementLibraryPanel() {
           ) : (
             <div className="grid grid-cols-2 gap-2 max-[1024px]:grid-cols-1">
               {items.map((item) => {
-                const isSelected = item.id === selectedElementId
+                const isPreset = item.category === 'text' && item.textPreset
+                const isRecentPreset = isPreset && item.id === lastPresetId
                 return (
-                <article
-                  className={`group cursor-pointer rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
-                    isSelected ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
-                  }`}
-                  key={item.id}
-                  aria-current={isSelected}
-                  onClick={() => {
-                    console.log('[ElementLibrary] add element ->', item)
-                    addElement(item)
-                  }}
-                >
-                  <div
-                    className={`relative flex aspect-[16/10] items-center justify-center rounded-[6px] border transition group-hover:border-[#6366f1] ${
-                      isSelected ? 'border-[#6366f1]' : 'border-[#2a2a34]'
-                    } ${cardByType[item.type]}`}
+                  <article
+                    className={`group cursor-pointer rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
+                      isRecentPreset ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
+                    }`}
+                    key={item.id}
+                    aria-current={isRecentPreset}
+                    onClick={() => {
+                      console.log('[ElementLibrary] add element ->', item)
+                      if (isPreset) {
+                        handleAddTextPreset(item)
+                      } else {
+                        trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
+                        addElement(item)
+                      }
+                    }}
                   >
-                    <ResourceGlyph type={item.type} />
-                    {isSelected && (
-                      <span className="absolute left-1.5 top-1.5 rounded-[4px] bg-[#6366f1] px-1.5 py-px text-[9px] font-semibold text-white">
-                        Seleccionado
-                      </span>
-                    )}
+                    <div
+                      className={`relative flex aspect-[16/10] items-center justify-center rounded-[6px] border transition group-hover:border-[#6366f1] ${
+                        isRecentPreset ? 'border-[#6366f1]' : 'border-[#2a2a34]'
+                      } ${cardByType[item.type]}`}
+                    >
+                      <ResourceGlyph type={item.type} />
+                      {isRecentPreset && (
+                        <span className="absolute left-1.5 top-1.5 rounded-[4px] bg-[#6366f1] px-1.5 py-px text-[9px] font-semibold text-white">
+                          Añadido
+                        </span>
+                      )}
                     {item.duration && (
                       <span className="absolute bottom-1 right-1 rounded-[3px] bg-black/70 px-1.5 py-px text-[9px] font-semibold text-white">
                         {item.duration}
