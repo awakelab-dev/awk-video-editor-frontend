@@ -2,18 +2,30 @@ import type { StateCreator } from 'zustand'
 import type { EditorElement, Track } from '../types/editor'
 import type { EditorStore } from './index'
 
+type KeysOfUnion<T> = T extends T ? keyof T : never
+type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
+
+type EditorElementKey = KeysOfUnion<EditorElement>
+type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<EditorElement, K>
+
 export type TracksSlice = {
   tracks: Track[]
   createTrack: (track: Track) => void
   addElement: (trackId: string, element: EditorElement) => void
+  moveElement: (
+    sourceTrackId: string,
+    elementId: string,
+    targetTrackId: string,
+    targetStartTime: number,
+  ) => void
   reorderTracks: (fromIndex: number, toIndex: number) => void
   removeElement: (trackId: string, elementId: string) => void
   removeTrack: (trackId: string) => void
-  updateElementProperty: <K extends keyof EditorElement>(
+  updateElementProperty: (
     trackId: string,
     elementId: string,
-    property: K,
-    value: EditorElement[K],
+    property: EditorElementKey,
+    value: EditorElementValue<EditorElementKey>,
   ) => void
 }
 
@@ -34,6 +46,65 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
           : track,
       ),
     })),
+  moveElement: (sourceTrackId, elementId, targetTrackId, targetStartTime) =>
+    set((state) => {
+      const sourceTrack = state.tracks.find((track) => track.id === sourceTrackId)
+      const targetTrack = state.tracks.find((track) => track.id === targetTrackId)
+      const element = sourceTrack?.elements.find((trackElement) => trackElement.id === elementId)
+
+      if (!sourceTrack || !targetTrack || !element) {
+        return { tracks: state.tracks }
+      }
+
+      const nextStartTime = Math.max(0, targetStartTime)
+
+      if (sourceTrackId === targetTrackId) {
+        return {
+          tracks: state.tracks.map((track) =>
+            track.id === sourceTrackId
+              ? {
+                  ...track,
+                  elements: track.elements
+                    .map((trackElement) =>
+                      trackElement.id === elementId
+                        ? {
+                            ...trackElement,
+                            startTime: nextStartTime,
+                          }
+                        : trackElement,
+                    )
+                    .sort((a, b) => a.startTime - b.startTime),
+                }
+              : track,
+          ),
+        }
+      }
+
+      const movedElement = {
+        ...element,
+        startTime: nextStartTime,
+      }
+
+      return {
+        tracks: state.tracks.map((track) => {
+          if (track.id === sourceTrackId) {
+            return {
+              ...track,
+              elements: track.elements.filter((trackElement) => trackElement.id !== elementId),
+            }
+          }
+
+          if (track.id === targetTrackId) {
+            return {
+              ...track,
+              elements: [...track.elements, movedElement].sort((a, b) => a.startTime - b.startTime),
+            }
+          }
+
+          return track
+        }),
+      }
+    }),
   reorderTracks: (fromIndex, toIndex) =>
     set((state) => {
       if (

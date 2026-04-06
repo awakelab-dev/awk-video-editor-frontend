@@ -8,7 +8,8 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import { useState } from 'react'
+import type { CSSProperties, DragEvent } from 'react'
 import { useEditorStore } from '../../../shared/store'
 
 type TrackKind = 'video' | 'image' | 'audio' | 'text' | 'shape' | 'empty'
@@ -29,6 +30,14 @@ const clipByType: Record<Exclude<TrackKind, 'empty'>, string> = {
   audio: 'bg-gradient-to-b from-[#4ade80] to-[#22c55e]',
   shape: 'bg-gradient-to-b from-[#2dd4bf] to-[#14b8a6]',
 }
+
+type DraggedTimelineElement = {
+  elementId: string
+  sourceTrackId: string
+  duration: number
+}
+
+const DRAG_DATA_MIME = 'application/x-awk-track-element'
 
 function getTrackKind(elementType?: string): TrackKind {
   if (
@@ -61,14 +70,60 @@ function styleFromTime(startTime: number, duration: number, timelineDuration: nu
   }
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function startTimeFromPointer(
+  clientX: number,
+  targetRect: DOMRect,
+  timelineDuration: number,
+  elementDuration: number,
+): number {
+  const safeWidth = Math.max(targetRect.width, 1)
+  const ratio = clamp((clientX - targetRect.left) / safeWidth, 0, 1)
+  const rawTime = ratio * timelineDuration
+  const maxStartTime = Math.max(timelineDuration - Math.max(0, elementDuration), 0)
+  return clamp(rawTime, 0, maxStartTime)
+}
+
+function readDraggedElement(event: DragEvent<HTMLElement>): DraggedTimelineElement | null {
+  const payload = event.dataTransfer.getData(DRAG_DATA_MIME)
+  if (!payload) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as Partial<DraggedTimelineElement>
+    if (
+      typeof parsed.elementId !== 'string' ||
+      typeof parsed.sourceTrackId !== 'string' ||
+      typeof parsed.duration !== 'number'
+    ) {
+      return null
+    }
+
+    return {
+      elementId: parsed.elementId,
+      sourceTrackId: parsed.sourceTrackId,
+      duration: parsed.duration,
+    }
+  } catch {
+    return null
+  }
+}
+
 export function TimelinePanel() {
   const tracks = useEditorStore((state) => state.tracks)
   const selectedElementId = useEditorStore((state) => state.selectedElementId)
   const selectElement = useEditorStore((state) => state.selectElement)
+  const moveElement = useEditorStore((state) => state.moveElement)
   const currentTime = useEditorStore((state) => state.currentTime)
   const projectDuration = useEditorStore((state) => state.duration)
   const zoomLevel = useEditorStore((state) => state.zoomLevel)
   const setzoom = useEditorStore((state) => state.setzoom)
+  const [draggedElement, setDraggedElement] = useState<DraggedTimelineElement | null>(null)
+  const [dropPreview, setDropPreview] = useState<{ trackId: string; startTime: number } | null>(null)
 
   const maxTrackEnd =
     tracks.flatMap((track) => track.elements).reduce((max, element) => {
@@ -82,6 +137,74 @@ export function TimelinePanel() {
   })
   const playheadLeftPercent = Math.min(100, (Math.max(0, currentTime) / timelineDuration) * 100)
   const zoomProgress = Math.min(100, Math.max(0, ((zoomLevel - 50) / 350) * 100))
+
+  const handleClipDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    sourceTrackId: string,
+    elementId: string,
+    duration: number,
+  ) => {
+    const payload: DraggedTimelineElement = {
+      elementId,
+      sourceTrackId,
+      duration,
+    }
+
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(DRAG_DATA_MIME, JSON.stringify(payload))
+    event.dataTransfer.setData('text/plain', elementId)
+    setDraggedElement(payload)
+    selectElement(elementId, 'timeline')
+  }
+
+  const handleLaneDragOver = (event: DragEvent<HTMLDivElement>, trackId: string) => {
+    const payload = readDraggedElement(event) ?? draggedElement
+    if (!payload) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+
+    const nextStartTime = startTimeFromPointer(
+      event.clientX,
+      event.currentTarget.getBoundingClientRect(),
+      timelineDuration,
+      payload.duration,
+    )
+
+    setDropPreview((current) => {
+      if (current && current.trackId === trackId && Math.abs(current.startTime - nextStartTime) < 0.05) {
+        return current
+      }
+      return { trackId, startTime: nextStartTime }
+    })
+  }
+
+  const handleLaneDrop = (event: DragEvent<HTMLDivElement>, targetTrackId: string) => {
+    event.preventDefault()
+    const payload = readDraggedElement(event) ?? draggedElement
+    if (!payload) {
+      return
+    }
+
+    const nextStartTime = startTimeFromPointer(
+      event.clientX,
+      event.currentTarget.getBoundingClientRect(),
+      timelineDuration,
+      payload.duration,
+    )
+
+    moveElement(payload.sourceTrackId, payload.elementId, targetTrackId, nextStartTime)
+    selectElement(payload.elementId, 'timeline')
+    setDraggedElement(null)
+    setDropPreview(null)
+  }
+
+  const handleClipDragEnd = () => {
+    setDraggedElement(null)
+    setDropPreview(null)
+  }
 
   return (
     <section className="col-span-3 row-start-2 flex min-h-0 flex-col border-t border-[#2a2a34] bg-[#1a1a20]">
@@ -208,10 +331,26 @@ export function TimelinePanel() {
                 <div
                   className="relative h-[38px] border-b border-white/[0.03] hover:bg-white/[0.01] max-[1024px]:h-[34px]"
                   key={`lane-${track.id}`}
+                  onDragLeave={() =>
+                    setDropPreview((current) => (current?.trackId === track.id ? null : current))
+                  }
+                  onDragOver={(event) => handleLaneDragOver(event, track.id)}
+                  onDrop={(event) => handleLaneDrop(event, track.id)}
                 >
+                  {dropPreview?.trackId === track.id && (
+                    <div
+                      className="pointer-events-none absolute inset-y-0 z-[2] w-px bg-white/70"
+                      style={{ left: `${(dropPreview.startTime / timelineDuration) * 100}%` }}
+                    />
+                  )}
                   {track.elements.map((element) => (
                     <div
-                      className={`absolute top-[3px] flex h-[calc(100%-6px)] items-center overflow-hidden rounded-[4px] ${clipByType[element.type]} ${element.id === selectedElementId ? 'ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]' : ''}`}
+                      className={`absolute top-[3px] flex h-[calc(100%-6px)] cursor-grab items-center overflow-hidden rounded-[4px] active:cursor-grabbing ${clipByType[element.type]} ${element.id === selectedElementId ? 'ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]' : ''}`}
+                      draggable
+                      onDragEnd={handleClipDragEnd}
+                      onDragStart={(event) =>
+                        handleClipDragStart(event, track.id, element.id, element.duration)
+                      }
                       key={element.id}
                       onClick={() => selectElement(element.id, 'timeline')}
                       style={styleFromTime(element.startTime, element.duration, timelineDuration)}

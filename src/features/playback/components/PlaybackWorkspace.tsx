@@ -1,6 +1,6 @@
 import { Maximize2, Play, SkipBack, SkipForward, Volume2 } from 'lucide-react'
-import type { CSSProperties } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import type { TextElement } from '../../../shared/types/editor'
 
@@ -22,8 +22,8 @@ function buildTextElementStyle(
 
   return {
     position: 'absolute',
-    left: `${clampPercent((element.x / safeW) * 100)}%`,
-    top: `${clampPercent((element.y / safeH) * 100)}%`,
+    left: `${(element.x / safeW) * 100}%`,
+    top: `${(element.y / safeH) * 100}%`,
     width: `${clampPercent((element.width / safeW) * 100)}%`,
     height: `${clampPercent((element.height / safeH) * 100)}%`,
     transform: `rotate(${element.rotation}deg)`,
@@ -50,16 +50,24 @@ function buildTextElementStyle(
           : 'center',
     padding: `${4 * previewScale}px ${8 * previewScale}px`,
     textShadow: `0 ${2 * previewScale}px ${6 * previewScale}px rgba(0,0,0,0.55)`,
-    pointerEvents: 'none',
   }
+}
+
+type ActiveTextContext = {
+  trackId: string
+  element: TextElement
 }
 
 export function PlaybackWorkspace() {
   const tracks = useEditorStore((state) => state.tracks)
   const currentTime = useEditorStore((state) => state.currentTime)
   const resolution = useEditorStore((state) => state.resolution)
+  const selectedElementId = useEditorStore((state) => state.selectedElementId)
+  const selectElement = useEditorStore((state) => state.selectElement)
+  const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
   const previewRef = useRef<HTMLDivElement | null>(null)
   const [previewScale, setPreviewScale] = useState(1)
+  const [isDraggingText, setIsDraggingText] = useState(false)
 
   useEffect(() => {
     if (!previewRef.current) {
@@ -89,14 +97,80 @@ export function PlaybackWorkspace() {
     }
   }, [resolution.h, resolution.w])
 
-  const activeTextElement =
-    tracks
-      .flatMap((track) => track.elements)
-      .find(
-        (element): element is TextElement =>
-          element.type === 'text' && isTextElementActiveAtTime(element, currentTime),
-      ) ?? null
-  const hasRenderedContent = activeTextElement !== null
+  const activeTextContext = useMemo<ActiveTextContext | null>(() => {
+    const activeTextElements: ActiveTextContext[] = []
+    for (const track of tracks) {
+      for (const element of track.elements) {
+        if (element.type === 'text' && isTextElementActiveAtTime(element, currentTime)) {
+          activeTextElements.push({ trackId: track.id, element })
+        }
+      }
+    }
+
+    if (activeTextElements.length === 0) {
+      return null
+    }
+
+    const selected = activeTextElements.find((context) => context.element.id === selectedElementId)
+    return selected ?? activeTextElements[0]
+  }, [currentTime, selectedElementId, tracks])
+
+  const activeTextElement = activeTextContext?.element ?? null
+  const hasRenderedContent = activeTextContext !== null
+
+  const handleTextMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!activeTextContext || !previewRef.current || event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    selectElement(activeTextContext.element.id, 'canvas')
+
+    const dragStart = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: activeTextContext.element.x,
+      startY: activeTextContext.element.y,
+      trackId: activeTextContext.trackId,
+      elementId: activeTextContext.element.id,
+      elementWidth: activeTextContext.element.width,
+      elementHeight: activeTextContext.element.height,
+    }
+
+    const safeScale = Math.max(previewScale, 0.001)
+
+    let lastX = dragStart.startX
+    let lastY = dragStart.startY
+    const originalUserSelect = document.body.style.userSelect
+    document.body.style.userSelect = 'none'
+    setIsDraggingText(true)
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = (moveEvent.clientX - dragStart.pointerX) / safeScale
+      const deltaY = (moveEvent.clientY - dragStart.pointerY) / safeScale
+      const nextX = Math.round(dragStart.startX + deltaX)
+      const nextY = Math.round(dragStart.startY + deltaY)
+
+      if (nextX === lastX && nextY === lastY) {
+        return
+      }
+
+      lastX = nextX
+      lastY = nextY
+      updateElementProperty(dragStart.trackId, dragStart.elementId, 'x', nextX)
+      updateElementProperty(dragStart.trackId, dragStart.elementId, 'y', nextY)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      document.body.style.userSelect = originalUserSelect
+      setIsDraggingText(false)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
 
   return (
     <section className="row-start-1 flex min-h-0 flex-col overflow-hidden bg-[#0d0d11]">
@@ -104,10 +178,16 @@ export function PlaybackWorkspace() {
         <figure className="flex h-full w-full items-center justify-center">
           <div
             className="relative flex aspect-video w-full max-w-[800px] items-center justify-center overflow-hidden rounded-[8px] bg-black shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+            data-testid="playback-preview"
             ref={previewRef}
           >
             {activeTextElement && (
-              <div style={buildTextElementStyle(activeTextElement, resolution, previewScale)}>
+              <div
+                className={`select-none ${isDraggingText ? 'cursor-grabbing' : 'cursor-move'} ${selectedElementId === activeTextElement.id ? 'ring-1 ring-white/60' : ''}`}
+                data-testid="playback-text-overlay"
+                onMouseDown={handleTextMouseDown}
+                style={buildTextElementStyle(activeTextElement, resolution, previewScale)}
+              >
                 {activeTextElement.text}
               </div>
             )}
