@@ -222,6 +222,22 @@ export function InspectorPanel() {
                 {selectedOpacityPercent}%
               </span>
             </PropertyRow>
+
+            <div className="pt-1">
+              <label
+                className="mb-1.5 block text-[11px] text-[#6b7280]"
+                htmlFor="inspector-text-content"
+              >
+                Texto:
+              </label>
+              <textarea
+                id="inspector-text-content"
+                aria-label="Texto"
+                className="min-h-[84px] w-full resize-y rounded-[4px] border border-[#2a2a34] bg-[#25252e] px-2 py-1.5 text-xs text-[#f0f0f4] outline-none transition focus:border-[#6366f1]"
+                onChange={(event) => updateSelectedTextProperty('text', event.target.value)}
+                value={selectedTextElement.text}
+              />
+            </div>
           </PropertySection>
         )}
       </div>

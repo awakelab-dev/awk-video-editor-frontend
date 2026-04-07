@@ -102,6 +102,10 @@ describe('InspectorPanel', () => {
     fireEvent.change(screen.getByLabelText('Tamano'), { target: { value: '16' } })
 
     expect(screen.getByTestId('canvas-text').style.fontSize).toBe('16px')
+
+    fireEvent.change(screen.getByLabelText('Texto'), { target: { value: 'Nuevo copy' } })
+
+    expect(screen.getByTestId('canvas-text').textContent).toBe('Nuevo copy')
   })
 
   it('muestra estado vacio cuando no hay seleccion', () => {
