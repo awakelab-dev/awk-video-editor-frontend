@@ -1,8 +1,0 @@
-- [ ] Estado inicial: crear 3 tracks por defecto, uno de cada tipo.
-- [ ] Proteger tracks iniciales: los 3 tracks por defecto no se pueden borrar.
-- [ ] Alta de elementos: cada elemento nuevo debe añadirse al track de su tipo correspondiente.
-- [ ] Añadir integración de tests unitarios para la función de addElement con un tipo de texto
-- [ ] Probar integración con lo realizado por Pablo Plaza para añadir texto al track
-- [ ] Probar a añadir más de un texto
-- [ ] Funcionalidad de play/pause
-- [ ] Crear un renderizador más estable/probar que el actual funcione con más elementos (según el currentTime)

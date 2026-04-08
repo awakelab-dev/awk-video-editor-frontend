@@ -11,8 +11,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useEditorStore } from "../store";
-import type { TextElement } from "../types/editor";
 
 type ToolbarIconButtonProps = {
   ariaLabel: string;
@@ -32,51 +30,6 @@ function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
 }
 
 export function AppToolbar() {
-  const handleAddTestText = () => {
-    const store = useEditorStore.getState();
-    const targetTrackId = "track-text-debug";
-
-    if (!store.tracks.some((track) => track.id === targetTrackId)) {
-      store.createTrack({
-        id: targetTrackId,
-        name: "Debug Text Track",
-        elements: [],
-      });
-    }
-
-    const elementId = `el-text-${Date.now()}`;
-    const testTextElement: TextElement = {
-      id: elementId,
-      type: "text",
-      name: "Texto de prueba",
-      startTime: 0,
-      duration: 5,
-      opacity: 1,
-      x: 620,
-      y: 120,
-      width: 760,
-      height: 140,
-      rotation: 0,
-      text: "Este es un texto de prueba para verificar la funcionalidad de agregar elementos al editor.",
-      fontFamily: "Inter",
-      fontSize: 48,
-      fontWeight: 700,
-      textColor: "#FFFFFF",
-      backgroundColor: "transparent",
-      lineHeight: 1.1,
-      letterSpacing: 0,
-      textAlign: "left",
-    };
-
-    store.addElement(targetTrackId, testTextElement);
-    store.selectElement(elementId, "timeline");
-    console.log("Editor store after TEMP Add Text:", useEditorStore.getState());
-    console.log(
-      "Tracks after TEMP Add Text:",
-      useEditorStore.getState().tracks,
-    );
-  };
-
   return (
     <header className="flex h-[52px] items-center justify-between gap-4 border-b border-[#2a2a34] bg-[#16161a] px-4">
       <div className="flex items-center gap-5">
@@ -133,13 +86,6 @@ export function AppToolbar() {
         <ToolbarIconButton ariaLabel="Configuración">
           <Settings className="h-4 w-4" />
         </ToolbarIconButton>
-        <button
-          className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#2a2a34] bg-[#25252e] px-3 py-[7px] text-[12px] font-medium text-[#f0f0f4] transition hover:border-[#6366f1] hover:text-[#818cf8]"
-          onClick={handleAddTestText}
-          type="button"
-        >
-          TEMP Add Text
-        </button>
         <button
           className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#6366f1] px-4 py-[7px] text-[13px] font-medium text-white transition hover:bg-[#818cf8]"
           type="button"

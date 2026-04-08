@@ -17,7 +17,7 @@ export type ProjectSlice = {
 
 export const createProjectSlice: StateCreator<EditorStore, [], [], ProjectSlice> = (set) => ({
   projectName: 'Untitled Project',
-  duration: 0,
+  duration: 150,
   resolution: { w: 1920, h: 1080 },
   setProjectName: (projectName) => set({ projectName }),
   setDuration: (duration) => set({ duration }),
