@@ -8,9 +8,10 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { useState } from 'react'
-import type { CSSProperties, DragEvent } from 'react'
+import { useRef, useState } from 'react'
+import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from 'react'
 import { useEditorStore } from '../../../shared/store'
+import { clamp, formatSeconds, getPlaybackDuration } from '../utils/timeline'
 
 type TrackKind = 'video' | 'image' | 'audio' | 'text' | 'shape' | 'empty'
 
@@ -52,15 +53,8 @@ function getTrackKind(elementType?: string): TrackKind {
   return 'empty'
 }
 
-function formatSeconds(totalSeconds: number): string {
-  const clamped = Math.max(0, Math.floor(totalSeconds))
-  const minutes = Math.floor(clamped / 60)
-  const seconds = clamped % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-}
-
 function styleFromTime(startTime: number, duration: number, timelineDuration: number): CSSProperties {
-  const safeDuration = Math.max(timelineDuration, 1)
+  const safeDuration = Math.max(timelineDuration, 0.001)
   const left = (Math.max(startTime, 0) / safeDuration) * 100
   const width = (Math.max(duration, 0.1) / safeDuration) * 100
 
@@ -68,10 +62,6 @@ function styleFromTime(startTime: number, duration: number, timelineDuration: nu
     left: `${left}%`,
     width: `${Math.max(width, 1.5)}%`,
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
 }
 
 function startTimeFromPointer(
@@ -122,20 +112,25 @@ export function TimelinePanel() {
   const projectDuration = useEditorStore((state) => state.duration)
   const zoomLevel = useEditorStore((state) => state.zoomLevel)
   const setzoom = useEditorStore((state) => state.setzoom)
+  const seek = useEditorStore((state) => state.seek)
+  const pause = useEditorStore((state) => state.pause)
+  const play = useEditorStore((state) => state.play)
   const [draggedElement, setDraggedElement] = useState<DraggedTimelineElement | null>(null)
   const [dropPreview, setDropPreview] = useState<{ trackId: string; startTime: number } | null>(null)
+  const [isScrubbing, setIsScrubbing] = useState(false)
+  const timelineSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const resumePlaybackAfterScrubRef = useRef(false)
 
-  const maxTrackEnd =
-    tracks.flatMap((track) => track.elements).reduce((max, element) => {
-      return Math.max(max, element.startTime + element.duration)
-    }, 0) || 0
-  const timelineDuration = Math.max(projectDuration, maxTrackEnd, 120)
+  const playbackDuration = getPlaybackDuration(projectDuration, tracks)
+  const timelineDuration = Math.max(playbackDuration, 1)
+  const pixelsPerSecond = 12 * (zoomLevel / 100)
+  const timelineCanvasWidth = Math.max(1100, timelineDuration * pixelsPerSecond)
   const markCount = 10
   const marks = Array.from({ length: markCount }, (_, index) => {
     const time = (timelineDuration / (markCount - 1)) * index
     return formatSeconds(time)
   })
-  const playheadLeftPercent = Math.min(100, (Math.max(0, currentTime) / timelineDuration) * 100)
+  const playheadLeftPercent = (clamp(currentTime, 0, timelineDuration) / timelineDuration) * 100
   const zoomProgress = Math.min(100, Math.max(0, ((zoomLevel - 50) / 350) * 100))
 
   const handleClipDragStart = (
@@ -204,6 +199,69 @@ export function TimelinePanel() {
   const handleClipDragEnd = () => {
     setDraggedElement(null)
     setDropPreview(null)
+  }
+
+  const handleTimelineWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+
+    const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+    if (dominantDelta === 0) {
+      return
+    }
+
+    const secondsPerPixel = timelineDuration / Math.max(timelineCanvasWidth, 1)
+    const sensitivity = event.shiftKey ? 0.2 : 0.5
+    const nextTime = clamp(currentTime + dominantDelta * secondsPerPixel * sensitivity, 0, timelineDuration)
+    seek(nextTime)
+  }
+
+  const startScrubbing = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!timelineSurfaceRef.current || event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    const wasPlaying = useEditorStore.getState().isPlaying
+    resumePlaybackAfterScrubRef.current = wasPlaying
+
+    if (wasPlaying) {
+      pause()
+    }
+
+    const scrubToClientX = (clientX: number) => {
+      if (!timelineSurfaceRef.current) {
+        return
+      }
+
+      const nextTime = startTimeFromPointer(
+        clientX,
+        timelineSurfaceRef.current.getBoundingClientRect(),
+        timelineDuration,
+        0,
+      )
+      seek(nextTime)
+    }
+
+    scrubToClientX(event.clientX)
+    setIsScrubbing(true)
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      scrubToClientX(moveEvent.clientX)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      setIsScrubbing(false)
+
+      if (resumePlaybackAfterScrubRef.current) {
+        play()
+      }
+      resumePlaybackAfterScrubRef.current = false
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
   }
 
   return (
@@ -307,9 +365,22 @@ export function TimelinePanel() {
           })}
         </div>
 
-        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-visible">
-          <div className="relative min-w-[1100px]">
-            <div className="sticky top-0 z-[5] h-7 border-b border-[#2a2a34] bg-[#1e1e26]">
+        <div
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-visible"
+          data-testid="timeline-scroll-area"
+          onWheel={handleTimelineWheel}
+        >
+          <div
+            className="relative"
+            data-testid="timeline-surface"
+            ref={timelineSurfaceRef}
+            style={{ minWidth: `${timelineCanvasWidth}px`, width: `${timelineCanvasWidth}px` }}
+          >
+            <div
+              className="sticky top-0 z-[5] h-7 border-b border-[#2a2a34] bg-[#1e1e26]"
+              onMouseDown={startScrubbing}
+              role="presentation"
+            >
               {marks.map((mark, index) => (
                 <span
                   className="absolute top-0 text-[10px] leading-7 text-[#6b7280] tabular-nums after:absolute after:bottom-0 after:left-[-4px] after:h-2 after:w-px after:bg-[#35353f]"
@@ -322,7 +393,13 @@ export function TimelinePanel() {
             </div>
 
             <div className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5" style={{ left: `${playheadLeftPercent}%` }}>
-              <div className="absolute left-[-5px] top-2 h-3 w-3 bg-[#ef4444] [clip-path:polygon(0_0,100%_0,50%_100%)]" />
+              <button
+                aria-label="Mover playhead"
+                className={`pointer-events-auto absolute left-[-5px] top-2 h-3 w-3 bg-[#ef4444] [clip-path:polygon(0_0,100%_0,50%_100%)] ${isScrubbing ? 'brightness-125' : ''}`}
+                data-testid="timeline-playhead-handle"
+                onMouseDown={startScrubbing}
+                type="button"
+              />
               <div className="absolute bottom-0 left-0 top-5 w-0.5 bg-[#ef4444]/80" />
             </div>
 

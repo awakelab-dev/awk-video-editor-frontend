@@ -91,4 +91,56 @@ describe('PlaybackWorkspace', () => {
       expect(text.y).toBe(-20)
     }
   })
+
+  it('renderiza todos los textos activos de todos los tracks en el mismo tiempo', () => {
+    const secondText = buildTextElement()
+    secondText.id = 'text-2'
+    secondText.text = 'Segundo texto'
+
+    useEditorStore.setState({
+      currentTime: 0,
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto 1',
+          elements: [buildTextElement()],
+        },
+        {
+          id: 'track-2',
+          name: 'Texto 2',
+          elements: [secondText],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    const overlays = screen.getAllByTestId('playback-text-overlay')
+    expect(overlays).toHaveLength(2)
+    expect(screen.getByText('Hola mundo')).toBeTruthy()
+    expect(screen.getByText('Segundo texto')).toBeTruthy()
+  })
+
+  it('oculta el placeholder si existe al menos un elemento aunque no este activo en el tiempo actual', () => {
+    const futureText = buildTextElement()
+    futureText.id = 'text-future'
+    futureText.startTime = 20
+    futureText.duration = 5
+
+    useEditorStore.setState({
+      currentTime: 0,
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto futuro',
+          elements: [futureText],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    expect(screen.queryByText('Vista previa del video')).toBeNull()
+    expect(screen.queryAllByTestId('playback-text-overlay')).toHaveLength(0)
+  })
 })
