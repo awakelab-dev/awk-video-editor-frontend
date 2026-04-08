@@ -39,6 +39,15 @@ type DraggedTimelineElement = {
 }
 
 const DRAG_DATA_MIME = 'application/x-awk-track-element'
+const NEW_TRACK_DROP_ID = '__new-track__'
+
+function buildTrackId(seed: number): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `track-${crypto.randomUUID()}`
+  }
+
+  return `track-${Date.now()}-${seed}`
+}
 
 function getTrackKind(elementType?: string): TrackKind {
   if (
@@ -108,6 +117,7 @@ export function TimelinePanel() {
   const selectedElementId = useEditorStore((state) => state.selectedElementId)
   const selectElement = useEditorStore((state) => state.selectElement)
   const moveElement = useEditorStore((state) => state.moveElement)
+  const createTrack = useEditorStore((state) => state.createTrack)
   const currentTime = useEditorStore((state) => state.currentTime)
   const projectDuration = useEditorStore((state) => state.duration)
   const zoomLevel = useEditorStore((state) => state.zoomLevel)
@@ -176,6 +186,10 @@ export function TimelinePanel() {
     })
   }
 
+  const handleProvisionalLaneDragOver = (event: DragEvent<HTMLDivElement>) => {
+    handleLaneDragOver(event, NEW_TRACK_DROP_ID)
+  }
+
   const handleLaneDrop = (event: DragEvent<HTMLDivElement>, targetTrackId: string) => {
     event.preventDefault()
     const payload = readDraggedElement(event) ?? draggedElement
@@ -191,6 +205,34 @@ export function TimelinePanel() {
     )
 
     moveElement(payload.sourceTrackId, payload.elementId, targetTrackId, nextStartTime)
+    selectElement(payload.elementId, 'timeline')
+    setDraggedElement(null)
+    setDropPreview(null)
+  }
+
+  const handleProvisionalLaneDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const payload = readDraggedElement(event) ?? draggedElement
+    if (!payload) {
+      return
+    }
+
+    const nextStartTime = startTimeFromPointer(
+      event.clientX,
+      event.currentTarget.getBoundingClientRect(),
+      timelineDuration,
+      payload.duration,
+    )
+
+    const nextTrackId = buildTrackId(tracks.length + 1)
+    const nextTrack = {
+      id: nextTrackId,
+      name: `Pista ${tracks.length + 1}`,
+      elements: [],
+    }
+
+    createTrack(nextTrack)
+    moveElement(payload.sourceTrackId, payload.elementId, nextTrackId, nextStartTime)
     selectElement(payload.elementId, 'timeline')
     setDraggedElement(null)
     setDropPreview(null)
@@ -363,6 +405,19 @@ export function TimelinePanel() {
               </div>
             )
           })}
+          {draggedElement && (
+            <div
+              className="flex h-[38px] items-center gap-2 border-b border-[#6366f1]/40 bg-[#6366f1]/[0.06] px-2.5 max-[1024px]:h-[34px]"
+              data-testid="timeline-new-track-label"
+            >
+              <span className="inline-flex h-[18px] w-6 shrink-0 items-center justify-center rounded-[3px] bg-[#6366f1]/20 text-[9px] font-bold text-[#a5b4fc]">
+                +
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#a5b4fc]">
+                Nueva pista
+              </span>
+            </div>
+          )}
         </div>
 
         <div
@@ -444,6 +499,27 @@ export function TimelinePanel() {
                   ))}
                 </div>
               ))}
+              {draggedElement && (
+                <div
+                  className="relative h-[38px] border-b border-dashed border-[#6366f1]/50 bg-[#6366f1]/[0.05] hover:bg-[#6366f1]/[0.08] max-[1024px]:h-[34px]"
+                  data-testid="timeline-new-track-lane"
+                  onDragLeave={() =>
+                    setDropPreview((current) => (current?.trackId === NEW_TRACK_DROP_ID ? null : current))
+                  }
+                  onDragOver={handleProvisionalLaneDragOver}
+                  onDrop={handleProvisionalLaneDrop}
+                >
+                  {dropPreview?.trackId === NEW_TRACK_DROP_ID && (
+                    <div
+                      className="pointer-events-none absolute inset-y-0 z-[2] w-px bg-[#c7d2fe]"
+                      style={{ left: `${(dropPreview.startTime / timelineDuration) * 100}%` }}
+                    />
+                  )}
+                  <div className="pointer-events-none absolute inset-0 flex items-center px-3 text-[10px] font-medium uppercase tracking-[0.04em] text-[#a5b4fc]/90">
+                    Soltar para crear nueva pista
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

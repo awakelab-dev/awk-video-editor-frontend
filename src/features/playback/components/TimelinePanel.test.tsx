@@ -75,4 +75,40 @@ describe('TimelinePanel', () => {
 
     expect(useEditorStore.getState().currentTime).toBeGreaterThan(6)
   })
+
+  it('crea una nueva track al soltar un elemento en la lane provisional', () => {
+    render(<TimelinePanel />)
+
+    const clipLabel = screen.getByText('Texto principal')
+    const clip = clipLabel.closest('[draggable="true"]') as HTMLElement
+
+    const dataStore = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: 'all',
+      dropEffect: 'move',
+      setData: (type: string, value: string) => {
+        dataStore.set(type, value)
+      },
+      getData: (type: string) => dataStore.get(type) ?? '',
+    } as unknown as DataTransfer
+
+    fireEvent.dragStart(clip, { dataTransfer })
+
+    const newLane = screen.getByTestId('timeline-new-track-lane')
+    vi.spyOn(newLane, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 40))
+
+    fireEvent.dragOver(newLane, { dataTransfer, clientX: 250 })
+    fireEvent.drop(newLane, { dataTransfer, clientX: 250 })
+
+    const state = useEditorStore.getState()
+    expect(state.tracks).toHaveLength(2)
+
+    const originalTrack = state.tracks[0]
+    const createdTrack = state.tracks[1]
+
+    expect(originalTrack?.elements).toHaveLength(0)
+    expect(createdTrack?.elements.map((element) => element.id)).toContain('text-1')
+    expect(createdTrack?.name).toBe('Pista 2')
+    expect(screen.queryByTestId('timeline-new-track-lane')).toBeNull()
+  })
 })
