@@ -4,6 +4,7 @@ import { useAddElement } from '../hooks/useAddElement'
 import { useElementCatalog } from '../hooks/useElementCatalog'
 import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
+import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 import type { MediaAsset } from '../../../shared/types/editor'
 import { useEditorStore } from '../../../shared/store'
@@ -38,6 +39,7 @@ export function ElementLibraryPanel() {
   const { items, category, setCategory, query, setQuery, total } = useElementCatalog(uploadedItems)
   const addElement = useAddElement()
   const addTextElement = useAddTextElement()
+  const addShapeElement = useAddShapeElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
@@ -50,6 +52,20 @@ export function ElementLibraryPanel() {
     const element = addTextElement({ preset: item.textPreset, label: item.name })
     console.log('[ElementLibrary] text preset workflow', {
       preset: item.textPreset,
+      templateId: item.id,
+      element,
+    })
+    setLastPresetId(item.id)
+    setFeedback(`${item.name} añadido al lienzo`)
+    window.setTimeout(() => setFeedback(null), 2000)
+  }
+
+  function handleAddShapePreset(item: ElementLibraryItem) {
+    if (!item.shapePreset) return
+    trackEvent('shape_preset_added', { source: 'element-library', preset: item.shapePreset, itemId: item.id })
+    const element = addShapeElement({ preset: item.shapePreset, label: item.name })
+    console.log('[ElementLibrary] shape preset workflow', {
+      preset: item.shapePreset,
       templateId: item.id,
       element,
     })
@@ -124,7 +140,8 @@ export function ElementLibraryPanel() {
           ) : (
             <div className="grid grid-cols-2 gap-2 max-[1024px]:grid-cols-1">
               {items.map((item) => {
-                const isPreset = item.category === 'text' && item.textPreset
+                const isPreset =
+                  (item.category === 'text' && item.textPreset) || (item.category === 'shapes' && item.shapePreset)
                 const isRecentPreset = isPreset && item.id === lastPresetId
                 return (
                   <article
@@ -135,8 +152,10 @@ export function ElementLibraryPanel() {
                     aria-current={isRecentPreset}
                     onClick={() => {
                       console.log('[ElementLibrary] add element ->', item)
-                      if (isPreset) {
+                      if (item.category === 'text' && item.textPreset) {
                         handleAddTextPreset(item)
+                      } else if (item.category === 'shapes' && item.shapePreset) {
+                        handleAddShapePreset(item)
                       } else {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         addElement(item)

@@ -71,7 +71,11 @@ type AddTextOptions = {
   label?: string
 }
 
-function buildTextElement(sequence: number, { preset = 'title', label }: AddTextOptions): TextElement {
+function buildTextElement(
+  sequence: number,
+  { preset = 'title', label }: AddTextOptions,
+  startTime: number,
+): TextElement {
   const config = TEXT_PRESET_CONFIG[preset]
   const baseLabel = label ?? config.label
   const name = sequence === 0 ? baseLabel : `${baseLabel} ${sequence + 1}`
@@ -82,7 +86,7 @@ function buildTextElement(sequence: number, { preset = 'title', label }: AddText
     id,
     type: 'text',
     name,
-    startTime: 0,
+    startTime,
     duration: 5,
     opacity: 1,
     x: config.x,
@@ -115,6 +119,7 @@ export function useAddTextElement() {
   const createTrack = useEditorStore((state) => state.createTrack)
   const addElement = useEditorStore((state) => state.addElement)
   const selectElement = useEditorStore((state) => state.selectElement)
+  const currentTime = useEditorStore((state) => state.currentTime)
 
   const addText = useCallback(
     (options: AddTextOptions = {}) => {
@@ -124,12 +129,12 @@ export function useAddTextElement() {
         createTrack(textTrack)
       }
       const sequence = textTrack.elements.filter((element) => element.type === 'text').length
-      const element = buildTextElement(sequence, options)
+      const element = buildTextElement(sequence, options, currentTime)
       addElement(textTrack.id, element)
       selectElement(element.id, 'element-library')
       return element
     },
-    [tracks, createTrack, addElement, selectElement],
+    [tracks, createTrack, addElement, selectElement, currentTime],
   )
 
   return addText
