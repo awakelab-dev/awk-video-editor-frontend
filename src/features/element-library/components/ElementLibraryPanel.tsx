@@ -1,4 +1,5 @@
 import { Film, Image, Layers3, Music2, Search, Type, Upload, Zap } from 'lucide-react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useAddElement } from '../hooks/useAddElement'
 import { useElementCatalog } from '../hooks/useElementCatalog'
@@ -6,6 +7,18 @@ import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
 import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
+
+type DragPayload =
+  | { kind: 'text'; preset: NonNullable<ElementLibraryItem['textPreset']>; label: string }
+  | { kind: 'shape'; preset: NonNullable<ElementLibraryItem['shapePreset']>; label: string }
+
+type DragEndDetail = {
+  payload: DragPayload
+  clientX: number
+  clientY: number
+}
+
+
 import type { MediaAsset } from '../../../shared/types/editor'
 import { useEditorStore } from '../../../shared/store'
 
@@ -45,6 +58,9 @@ export function ElementLibraryPanel() {
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const importAsset = useEditorStore((state) => state.importAsset)
+  const dragOverlayElRef = useRef<HTMLDivElement | null>(null)
+  const dragOverlayCleanupRef = useRef<(() => void) | null>(null)
+  const activeDragPayloadRef = useRef<DragPayload | null>(null)
 
   function handleAddTextPreset(item: ElementLibraryItem) {
     if (!item.textPreset) return
@@ -143,11 +159,18 @@ export function ElementLibraryPanel() {
                 const isPreset =
                   (item.category === 'text' && item.textPreset) || (item.category === 'shapes' && item.shapePreset)
                 const isRecentPreset = isPreset && item.id === lastPresetId
+                const payload: DragPayload | null =
+                  item.category === 'text' && item.textPreset
+                    ? { kind: 'text', preset: item.textPreset, label: item.name }
+                    : item.category === 'shapes' && item.shapePreset
+                      ? { kind: 'shape', preset: item.shapePreset, label: item.name }
+                      : null
+
                 return (
                   <article
-                    className={`group cursor-pointer rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
+                    className={`group rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
                       isRecentPreset ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
-                    }`}
+                    } ${isPreset ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
                     key={item.id}
                     aria-current={isRecentPreset}
                     onClick={() => {
@@ -166,6 +189,92 @@ export function ElementLibraryPanel() {
                       className={`relative flex aspect-[16/10] items-center justify-center rounded-[6px] border transition group-hover:border-[#6366f1] ${
                         isRecentPreset ? 'border-[#6366f1]' : 'border-[#2a2a34]'
                       } ${cardByType[item.type]}`}
+                      onMouseDown={(event: ReactMouseEvent<HTMLDivElement>) => {
+                        if (!payload) return
+
+                        event.preventDefault()
+                        event.stopPropagation()
+
+                        console.log('[ElementLibrary][drag] start', {
+                          id: item.id,
+                          name: item.name,
+                          payload,
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        })
+
+                        activeDragPayloadRef.current = payload
+
+                        // cleanup previous overlay if any
+                        dragOverlayCleanupRef.current?.()
+                        dragOverlayCleanupRef.current = null
+
+                        const overlay = document.createElement('div')
+                        overlay.textContent = item.name
+                        overlay.style.position = 'fixed'
+                        overlay.style.left = `${event.clientX}px`
+                        overlay.style.top = `${event.clientY}px`
+                        overlay.style.transform = 'translate(-50%, -50%)'
+                        overlay.style.padding = '6px 10px'
+                        overlay.style.borderRadius = '10px'
+                        overlay.style.background = 'rgba(99, 102, 241, 0.95)'
+                        overlay.style.color = 'white'
+                        overlay.style.fontSize = '12px'
+                        overlay.style.fontWeight = '600'
+                        overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.45)'
+                        overlay.style.pointerEvents = 'none'
+                        overlay.style.userSelect = 'none'
+                        overlay.style.zIndex = '2147483647'
+                        document.body.appendChild(overlay)
+                        dragOverlayElRef.current = overlay
+
+                        const onMouseMove = (e: MouseEvent) => {
+                          if (!dragOverlayElRef.current) return
+                          dragOverlayElRef.current.style.left = `${e.clientX}px`
+                          dragOverlayElRef.current.style.top = `${e.clientY}px`
+                        }
+
+                        const cleanup = () => {
+                          console.log('[ElementLibrary][drag] cleanup')
+                          window.removeEventListener('mousemove', onMouseMove)
+                          window.removeEventListener('mouseup', cleanup)
+                          dragOverlayElRef.current?.remove()
+                          dragOverlayElRef.current = null
+                          dragOverlayCleanupRef.current = null
+
+                          const activePayload = activeDragPayloadRef.current
+                          activeDragPayloadRef.current = null
+                          if (!activePayload) return
+
+                          const clientX = (window.event as MouseEvent | undefined)?.clientX ?? e.clientX
+                          const clientY = (window.event as MouseEvent | undefined)?.clientY ?? e.clientY
+
+                          // Only allow drop inside preview area.
+                          const preview = document.querySelector('[data-testid="playback-preview"]') as HTMLElement | null
+                          const withinPreview = (() => {
+                            if (!preview) return false
+                            const rect = preview.getBoundingClientRect()
+                            return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+                          })()
+
+                          if (!withinPreview) {
+                            console.log('[ElementLibrary][drag] end outside preview - ignored', { clientX, clientY })
+                            return
+                          }
+
+                          const detail: DragEndDetail = {
+                            payload: activePayload,
+                            clientX,
+                            clientY,
+                          }
+                          console.log('[ElementLibrary][drag] end', detail)
+                          window.dispatchEvent(new CustomEvent<DragEndDetail>('element-library:drag-end', { detail }))
+                        }
+
+                        window.addEventListener('mousemove', onMouseMove)
+                        window.addEventListener('mouseup', cleanup)
+                        dragOverlayCleanupRef.current = cleanup
+                      }}
                     >
                       <ResourceGlyph type={item.type} />
                       {isRecentPreset && (

@@ -44,10 +44,10 @@ const catalog: ElementLibraryItem[] = [
   { id: 'shape-2', name: 'Círculo', type: 'shape', category: 'shapes', description: 'Forma circular', shapePreset: 'ellipse' },
   {
     id: 'shape-3',
-    name: 'Fondo gradiente',
+    name: 'Cuadrado',
     type: 'shape',
     category: 'shapes',
-    description: 'Fondo ancho para overlays',
+    description: 'Forma cuadrada',
     shapePreset: 'background',
   },
   { id: 'transition-1', name: 'Fade', type: 'transition', category: 'transitions' },

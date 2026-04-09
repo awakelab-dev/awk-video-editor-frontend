@@ -69,11 +69,12 @@ const TEXT_PRESET_CONFIG: Record<
 type AddTextOptions = {
   preset?: TextPreset
   label?: string
+  dropPosition?: { x: number; y: number }
 }
 
 function buildTextElement(
   sequence: number,
-  { preset = 'title', label }: AddTextOptions,
+  { preset = 'title', label, dropPosition }: AddTextOptions,
   startTime: number,
 ): TextElement {
   const config = TEXT_PRESET_CONFIG[preset]
@@ -82,7 +83,7 @@ function buildTextElement(
   const id =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `text-${Date.now()}-${sequence}`
 
-  return {
+  const element: TextElement = {
     id,
     type: 'text',
     name,
@@ -104,6 +105,13 @@ function buildTextElement(
     letterSpacing: 0,
     textAlign: config.textAlign,
   }
+
+  if (dropPosition) {
+    element.x = Math.round(dropPosition.x - element.width / 2)
+    element.y = Math.round(dropPosition.y - element.height / 2)
+  }
+
+  return element
 }
 
 function createTextTrack(): Track {

@@ -39,34 +39,36 @@ const SHAPE_PRESET_CONFIG: Record<
     fillColor: '#22c55e',
     strokeColor: '#14532d',
     strokeWidth: 0,
-    cornerRadius: 0,
+    // For renderers that only support borderRadius (not true ellipse drawing)
+    cornerRadius: 9999,
     width: 220,
     height: 220,
     x: 380,
     y: 200,
   },
   background: {
-    label: 'Fondo gradiente',
+    label: 'Cuadrado',
     shapeType: 'rectangle',
     fillColor: '#111827',
     strokeColor: '#111827',
     strokeWidth: 0,
-    cornerRadius: 24,
-    width: 1000,
-    height: 240,
-    x: 140,
-    y: 320,
+    cornerRadius: 12,
+    width: 260,
+    height: 260,
+    x: 360,
+    y: 160,
   },
 }
 
 type AddShapeOptions = {
   preset?: ShapePreset
   label?: string
+  dropPosition?: { x: number; y: number }
 }
 
 function buildShapeElement(
   sequence: number,
-  { preset = 'rectangle', label }: AddShapeOptions,
+  { preset = 'rectangle', label, dropPosition }: AddShapeOptions,
   startTime: number,
 ): ShapeElement {
   const config = SHAPE_PRESET_CONFIG[preset]
@@ -75,7 +77,7 @@ function buildShapeElement(
   const id =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `shape-${Date.now()}-${sequence}`
 
-  return {
+  const element: ShapeElement = {
     id,
     type: 'shape',
     name,
@@ -93,6 +95,13 @@ function buildShapeElement(
     strokeWidth: config.strokeWidth,
     cornerRadius: config.cornerRadius,
   }
+
+  if (dropPosition) {
+    element.x = Math.round(dropPosition.x - element.width / 2)
+    element.y = Math.round(dropPosition.y - element.height / 2)
+  }
+
+  return element
 }
 
 function createShapeTrack(): Track {
