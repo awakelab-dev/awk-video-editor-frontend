@@ -38,8 +38,11 @@ type DraggedTimelineElement = {
   duration: number
 }
 
+type ResizeHandleSide = 'left' | 'right'
+
 const DRAG_DATA_MIME = 'application/x-awk-track-element'
 const NEW_TRACK_DROP_ID = '__new-track__'
+const MIN_ELEMENT_DURATION = 0.1
 
 function buildTrackId(seed: number): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -118,6 +121,7 @@ export function TimelinePanel() {
   const selectElement = useEditorStore((state) => state.selectElement)
   const moveElement = useEditorStore((state) => state.moveElement)
   const createTrack = useEditorStore((state) => state.createTrack)
+  const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
   const currentTime = useEditorStore((state) => state.currentTime)
   const projectDuration = useEditorStore((state) => state.duration)
   const zoomLevel = useEditorStore((state) => state.zoomLevel)
@@ -128,8 +132,10 @@ export function TimelinePanel() {
   const [draggedElement, setDraggedElement] = useState<DraggedTimelineElement | null>(null)
   const [dropPreview, setDropPreview] = useState<{ trackId: string; startTime: number } | null>(null)
   const [isScrubbing, setIsScrubbing] = useState(false)
+  const [resizingElementId, setResizingElementId] = useState<string | null>(null)
   const timelineSurfaceRef = useRef<HTMLDivElement | null>(null)
   const resumePlaybackAfterScrubRef = useRef(false)
+  const resizingElementIdRef = useRef<string | null>(null)
 
   const playbackDuration = getPlaybackDuration(projectDuration, tracks)
   const timelineDuration = Math.max(playbackDuration, 1)
@@ -149,6 +155,11 @@ export function TimelinePanel() {
     elementId: string,
     duration: number,
   ) => {
+    if (resizingElementIdRef.current === elementId) {
+      event.preventDefault()
+      return
+    }
+
     const payload: DraggedTimelineElement = {
       elementId,
       sourceTrackId,
@@ -160,6 +171,78 @@ export function TimelinePanel() {
     event.dataTransfer.setData('text/plain', elementId)
     setDraggedElement(payload)
     selectElement(elementId, 'timeline')
+  }
+
+  const startClipResize = (
+    event: ReactMouseEvent<HTMLDivElement>,
+    trackId: string,
+    elementId: string,
+    startTime: number,
+    duration: number,
+    side: ResizeHandleSide,
+  ) => {
+    if (event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    selectElement(elementId, 'timeline')
+
+    const dragStartClientX = event.clientX
+    const clipEnd = startTime + duration
+    const safeCanvasWidth = Math.max(timelineCanvasWidth, 1)
+    const secondsPerPixel = timelineDuration / safeCanvasWidth
+
+    let lastStartTime = startTime
+    let lastDuration = duration
+
+    resizingElementIdRef.current = elementId
+    setResizingElementId(elementId)
+
+    const roundToMilliseconds = (value: number) => Math.round(value * 1000) / 1000
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaSeconds = (moveEvent.clientX - dragStartClientX) * secondsPerPixel
+
+      if (side === 'right') {
+        const nextDuration = Math.max(MIN_ELEMENT_DURATION, roundToMilliseconds(duration + deltaSeconds))
+
+        if (Math.abs(nextDuration - lastDuration) < 0.0005) {
+          return
+        }
+
+        lastDuration = nextDuration
+        updateElementProperty(trackId, elementId, 'duration', nextDuration)
+        return
+      }
+
+      const maxStartTime = Math.max(clipEnd - MIN_ELEMENT_DURATION, 0)
+      const nextStartTime = clamp(roundToMilliseconds(startTime + deltaSeconds), 0, maxStartTime)
+      const nextDuration = Math.max(MIN_ELEMENT_DURATION, roundToMilliseconds(clipEnd - nextStartTime))
+
+      if (
+        Math.abs(nextStartTime - lastStartTime) < 0.0005 &&
+        Math.abs(nextDuration - lastDuration) < 0.0005
+      ) {
+        return
+      }
+
+      lastStartTime = nextStartTime
+      lastDuration = nextDuration
+      updateElementProperty(trackId, elementId, 'startTime', nextStartTime)
+      updateElementProperty(trackId, elementId, 'duration', nextDuration)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      resizingElementIdRef.current = null
+      setResizingElementId(null)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
   }
 
   const handleLaneDragOver = (event: DragEvent<HTMLDivElement>, trackId: string) => {
@@ -477,8 +560,9 @@ export function TimelinePanel() {
                   )}
                   {track.elements.map((element) => (
                     <div
-                      className={`absolute top-[3px] flex h-[calc(100%-6px)] cursor-grab items-center overflow-hidden rounded-[4px] active:cursor-grabbing ${clipByType[element.type]} ${element.id === selectedElementId ? 'ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]' : ''}`}
-                      draggable
+                      className={`absolute top-[3px] flex h-[calc(100%-6px)] items-center overflow-hidden rounded-[4px] ${element.id === resizingElementId ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing'} ${clipByType[element.type]} ${element.id === selectedElementId ? 'ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]' : ''}`}
+                      data-testid={`timeline-clip-${element.id}`}
+                      draggable={element.id !== resizingElementId}
                       onDragEnd={handleClipDragEnd}
                       onDragStart={(event) =>
                         handleClipDragStart(event, track.id, element.id, element.duration)
@@ -493,8 +577,20 @@ export function TimelinePanel() {
                       <span className="relative z-[2] truncate px-2 text-[10px] font-semibold text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">
                         {element.name}
                       </span>
-                      <div className="absolute inset-y-0 left-0 w-1.5 cursor-col-resize rounded-l-[4px] transition hover:bg-white/20" />
-                      <div className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize rounded-r-[4px] transition hover:bg-white/20" />
+                      <div
+                        className="absolute inset-y-0 left-0 z-[3] w-1.5 cursor-col-resize rounded-l-[4px] transition hover:bg-white/20"
+                        data-testid={`timeline-resize-left-${element.id}`}
+                        onMouseDown={(event) =>
+                          startClipResize(event, track.id, element.id, element.startTime, element.duration, 'left')
+                        }
+                      />
+                      <div
+                        className="absolute inset-y-0 right-0 z-[3] w-1.5 cursor-col-resize rounded-r-[4px] transition hover:bg-white/20"
+                        data-testid={`timeline-resize-right-${element.id}`}
+                        onMouseDown={(event) =>
+                          startClipResize(event, track.id, element.id, element.startTime, element.duration, 'right')
+                        }
+                      />
                     </div>
                   ))}
                 </div>

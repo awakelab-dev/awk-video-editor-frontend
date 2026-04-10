@@ -76,6 +76,38 @@ describe('TimelinePanel', () => {
     expect(useEditorStore.getState().currentTime).toBeGreaterThan(6)
   })
 
+  it('alarga y acorta un clip desde el extremo derecho actualizando su duration', () => {
+    render(<TimelinePanel />)
+
+    const rightHandle = screen.getByTestId('timeline-resize-right-text-1')
+    fireEvent.mouseDown(rightHandle, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 520, clientY: 20 })
+    fireEvent.mouseUp(window)
+
+    const element = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(element?.type).toBe('text')
+    if (element?.type === 'text') {
+      expect(element.duration).toBeCloseTo(12, 3)
+      expect(element.startTime).toBeCloseTo(0, 3)
+    }
+  })
+
+  it('redimensiona desde el extremo izquierdo y ajusta startTime y duration', () => {
+    render(<TimelinePanel />)
+
+    const leftHandle = screen.getByTestId('timeline-resize-left-text-1')
+    fireEvent.mouseDown(leftHandle, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 520, clientY: 20 })
+    fireEvent.mouseUp(window)
+
+    const element = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(element?.type).toBe('text')
+    if (element?.type === 'text') {
+      expect(element.startTime).toBeCloseTo(2, 3)
+      expect(element.duration).toBeCloseTo(8, 3)
+    }
+  })
+
   it('crea una nueva track al soltar un elemento en la lane provisional', () => {
     render(<TimelinePanel />)
 
