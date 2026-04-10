@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { TimelinePanel } from './TimelinePanel'
 import { useEditorStore } from '../../../shared/store'
+import { AUDIO_TRACK_ID, MEDIA_TRACK_ID, TEXT_TRACK_ID } from '../../../shared/store/defaultTracks'
 import type { TextElement } from '../../../shared/types/editor'
 
 function buildTextElement(): TextElement {
@@ -141,6 +142,53 @@ describe('TimelinePanel', () => {
     expect(originalTrack?.elements).toHaveLength(0)
     expect(createdTrack?.elements.map((element) => element.id)).toContain('text-1')
     expect(createdTrack?.name).toBe('Pista 2')
+    expect(createdTrack?.kind).toBe('text')
     expect(screen.queryByTestId('timeline-new-track-lane')).toBeNull()
+  })
+
+  it('impide soltar un texto en una track de audio', () => {
+    useEditorStore.setState({
+      tracks: [
+        {
+          id: TEXT_TRACK_ID,
+          name: 'Textos',
+          elements: [buildTextElement()],
+        },
+        {
+          id: AUDIO_TRACK_ID,
+          name: 'Audio',
+          elements: [],
+        },
+        {
+          id: MEDIA_TRACK_ID,
+          name: 'Imágenes/Vídeos',
+          elements: [],
+        },
+      ],
+    })
+
+    render(<TimelinePanel />)
+
+    const clip = screen.getByText('Texto principal').closest('[draggable="true"]') as HTMLElement
+    const dataStore = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: 'all',
+      dropEffect: 'move',
+      setData: (type: string, value: string) => {
+        dataStore.set(type, value)
+      },
+      getData: (type: string) => dataStore.get(type) ?? '',
+    } as unknown as DataTransfer
+
+    fireEvent.dragStart(clip, { dataTransfer })
+
+    const audioLane = screen.getByTestId(`timeline-lane-${AUDIO_TRACK_ID}`)
+    vi.spyOn(audioLane, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 40))
+    fireEvent.dragOver(audioLane, { dataTransfer, clientX: 200 })
+    fireEvent.drop(audioLane, { dataTransfer, clientX: 200 })
+
+    const state = useEditorStore.getState()
+    expect(state.tracks.find((track) => track.id === TEXT_TRACK_ID)?.elements.map((el) => el.id)).toEqual(['text-1'])
+    expect(state.tracks.find((track) => track.id === AUDIO_TRACK_ID)?.elements).toHaveLength(0)
   })
 })

@@ -7,73 +7,88 @@ import {
   Volume2,
   ZoomIn,
   ZoomOut,
-} from 'lucide-react'
-import { useRef, useState } from 'react'
-import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from 'react'
-import { useEditorStore } from '../../../shared/store'
-import { clamp, formatSeconds, getPlaybackDuration } from '../utils/timeline'
+} from "lucide-react";
+import { useRef, useState } from "react";
+import type {
+  CSSProperties,
+  DragEvent,
+  MouseEvent as ReactMouseEvent,
+  WheelEvent as ReactWheelEvent,
+} from "react";
+import { useEditorStore } from "../../../shared/store";
+import {
+  canElementGoToTrack,
+  getBucketFromElementType,
+} from "../../../shared/store/defaultTracks";
+import type { ElementKind } from "../../../shared/types/editor";
+import { clamp, formatSeconds, getPlaybackDuration } from "../utils/timeline";
 
-type TrackKind = 'video' | 'image' | 'audio' | 'text' | 'shape' | 'empty'
+type TrackKind = "video" | "image" | "audio" | "text" | "shape" | "empty";
 
 const badgeByKind: Record<TrackKind, string> = {
-  video: 'bg-[#6366f1]/[0.12] text-[#6366f1]',
-  image: 'bg-[#8b5cf6]/[0.12] text-[#a78bfa]',
-  audio: 'bg-[#22c55e]/[0.15] text-[#22c55e]',
-  text: 'bg-[#f59e0b]/[0.15] text-[#f59e0b]',
-  shape: 'bg-[#14b8a6]/[0.15] text-[#14b8a6]',
-  empty: 'bg-[#374151]/[0.2] text-[#9ca3af]',
-}
+  video: "bg-[#6366f1]/[0.12] text-[#6366f1]",
+  image: "bg-[#8b5cf6]/[0.12] text-[#a78bfa]",
+  audio: "bg-[#22c55e]/[0.15] text-[#22c55e]",
+  text: "bg-[#f59e0b]/[0.15] text-[#f59e0b]",
+  shape: "bg-[#14b8a6]/[0.15] text-[#14b8a6]",
+  empty: "bg-[#374151]/[0.2] text-[#9ca3af]",
+};
 
-const clipByType: Record<Exclude<TrackKind, 'empty'>, string> = {
-  video: 'bg-gradient-to-b from-[#818cf8] to-[#6366f1]',
-  image: 'bg-gradient-to-b from-[#a78bfa] to-[#8b5cf6]',
-  text: 'bg-gradient-to-b from-[#fbbf24] to-[#f59e0b]',
-  audio: 'bg-gradient-to-b from-[#4ade80] to-[#22c55e]',
-  shape: 'bg-gradient-to-b from-[#2dd4bf] to-[#14b8a6]',
-}
+const clipByType: Record<Exclude<TrackKind, "empty">, string> = {
+  video: "bg-gradient-to-b from-[#818cf8] to-[#6366f1]",
+  image: "bg-gradient-to-b from-[#a78bfa] to-[#8b5cf6]",
+  text: "bg-gradient-to-b from-[#fbbf24] to-[#f59e0b]",
+  audio: "bg-gradient-to-b from-[#4ade80] to-[#22c55e]",
+  shape: "bg-gradient-to-b from-[#2dd4bf] to-[#14b8a6]",
+};
 
 type DraggedTimelineElement = {
-  elementId: string
-  sourceTrackId: string
-  duration: number
-}
+  elementId: string;
+  sourceTrackId: string;
+  duration: number;
+  elementType: ElementKind;
+};
 
-type ResizeHandleSide = 'left' | 'right'
+type ResizeHandleSide = "left" | "right";
 
-const DRAG_DATA_MIME = 'application/x-awk-track-element'
-const NEW_TRACK_DROP_ID = '__new-track__'
-const MIN_ELEMENT_DURATION = 0.1
+const DRAG_DATA_MIME = "application/x-awk-track-element";
+const NEW_TRACK_DROP_ID = "__new-track__";
+const MIN_ELEMENT_DURATION = 0.1;
 
 function buildTrackId(seed: number): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `track-${crypto.randomUUID()}`
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `track-${crypto.randomUUID()}`;
   }
 
-  return `track-${Date.now()}-${seed}`
+  return `track-${Date.now()}-${seed}`;
 }
 
 function getTrackKind(elementType?: string): TrackKind {
   if (
-    elementType === 'video' ||
-    elementType === 'image' ||
-    elementType === 'audio' ||
-    elementType === 'text' ||
-    elementType === 'shape'
+    elementType === "video" ||
+    elementType === "image" ||
+    elementType === "audio" ||
+    elementType === "text" ||
+    elementType === "shape"
   ) {
-    return elementType
+    return elementType;
   }
-  return 'empty'
+  return "empty";
 }
 
-function styleFromTime(startTime: number, duration: number, timelineDuration: number): CSSProperties {
-  const safeDuration = Math.max(timelineDuration, 0.001)
-  const left = (Math.max(startTime, 0) / safeDuration) * 100
-  const width = (Math.max(duration, 0.1) / safeDuration) * 100
+function styleFromTime(
+  startTime: number,
+  duration: number,
+  timelineDuration: number,
+): CSSProperties {
+  const safeDuration = Math.max(timelineDuration, 0.001);
+  const left = (Math.max(startTime, 0) / safeDuration) * 100;
+  const width = (Math.max(duration, 0.1) / safeDuration) * 100;
 
   return {
     left: `${left}%`,
     width: `${Math.max(width, 1.5)}%`,
-  }
+  };
 }
 
 function startTimeFromPointer(
@@ -82,96 +97,124 @@ function startTimeFromPointer(
   timelineDuration: number,
   elementDuration: number,
 ): number {
-  const safeWidth = Math.max(targetRect.width, 1)
-  const ratio = clamp((clientX - targetRect.left) / safeWidth, 0, 1)
-  const rawTime = ratio * timelineDuration
-  const maxStartTime = Math.max(timelineDuration - Math.max(0, elementDuration), 0)
-  return clamp(rawTime, 0, maxStartTime)
+  const safeWidth = Math.max(targetRect.width, 1);
+  const ratio = clamp((clientX - targetRect.left) / safeWidth, 0, 1);
+  const rawTime = ratio * timelineDuration;
+  const maxStartTime = Math.max(
+    timelineDuration - Math.max(0, elementDuration),
+    0,
+  );
+  return clamp(rawTime, 0, maxStartTime);
 }
 
-function readDraggedElement(event: DragEvent<HTMLElement>): DraggedTimelineElement | null {
-  const payload = event.dataTransfer.getData(DRAG_DATA_MIME)
+function readDraggedElement(
+  event: DragEvent<HTMLElement>,
+): DraggedTimelineElement | null {
+  const payload = event.dataTransfer.getData(DRAG_DATA_MIME);
   if (!payload) {
-    return null
+    return null;
   }
 
   try {
-    const parsed = JSON.parse(payload) as Partial<DraggedTimelineElement>
+    const parsed = JSON.parse(payload) as Partial<DraggedTimelineElement>;
     if (
-      typeof parsed.elementId !== 'string' ||
-      typeof parsed.sourceTrackId !== 'string' ||
-      typeof parsed.duration !== 'number'
+      typeof parsed.elementId !== "string" ||
+      typeof parsed.sourceTrackId !== "string" ||
+      typeof parsed.duration !== "number" ||
+      (parsed.elementType !== "video" &&
+        parsed.elementType !== "image" &&
+        parsed.elementType !== "audio" &&
+        parsed.elementType !== "text" &&
+        parsed.elementType !== "shape")
     ) {
-      return null
+      return null;
     }
 
     return {
       elementId: parsed.elementId,
       sourceTrackId: parsed.sourceTrackId,
       duration: parsed.duration,
-    }
+      elementType: parsed.elementType,
+    };
   } catch {
-    return null
+    return null;
   }
 }
 
 export function TimelinePanel() {
-  const tracks = useEditorStore((state) => state.tracks)
-  const selectedElementId = useEditorStore((state) => state.selectedElementId)
-  const selectElement = useEditorStore((state) => state.selectElement)
-  const moveElement = useEditorStore((state) => state.moveElement)
-  const createTrack = useEditorStore((state) => state.createTrack)
-  const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
-  const currentTime = useEditorStore((state) => state.currentTime)
-  const projectDuration = useEditorStore((state) => state.duration)
-  const zoomLevel = useEditorStore((state) => state.zoomLevel)
-  const setzoom = useEditorStore((state) => state.setzoom)
-  const seek = useEditorStore((state) => state.seek)
-  const pause = useEditorStore((state) => state.pause)
-  const play = useEditorStore((state) => state.play)
-  const [draggedElement, setDraggedElement] = useState<DraggedTimelineElement | null>(null)
-  const [dropPreview, setDropPreview] = useState<{ trackId: string; startTime: number } | null>(null)
-  const [isScrubbing, setIsScrubbing] = useState(false)
-  const [resizingElementId, setResizingElementId] = useState<string | null>(null)
-  const timelineSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const resumePlaybackAfterScrubRef = useRef(false)
-  const resizingElementIdRef = useRef<string | null>(null)
+  const tracks = useEditorStore((state) => state.tracks);
+  const selectedElementId = useEditorStore((state) => state.selectedElementId);
+  const selectElement = useEditorStore((state) => state.selectElement);
+  const moveElement = useEditorStore((state) => state.moveElement);
+  const createTrack = useEditorStore((state) => state.createTrack);
+  const updateElementProperty = useEditorStore(
+    (state) => state.updateElementProperty,
+  );
+  const currentTime = useEditorStore((state) => state.currentTime);
+  const projectDuration = useEditorStore((state) => state.duration);
+  const zoomLevel = useEditorStore((state) => state.zoomLevel);
+  const setzoom = useEditorStore((state) => state.setzoom);
+  const seek = useEditorStore((state) => state.seek);
+  const pause = useEditorStore((state) => state.pause);
+  const play = useEditorStore((state) => state.play);
+  const [draggedElement, setDraggedElement] =
+    useState<DraggedTimelineElement | null>(null);
+  const [dropPreview, setDropPreview] = useState<{
+    trackId: string;
+    startTime: number;
+  } | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [resizingElementId, setResizingElementId] = useState<string | null>(
+    null,
+  );
+  const timelineSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const resumePlaybackAfterScrubRef = useRef(false);
+  const resizingElementIdRef = useRef<string | null>(null);
 
-  const playbackDuration = getPlaybackDuration(projectDuration, tracks)
-  const timelineDuration = Math.max(playbackDuration, 1)
-  const pixelsPerSecond = 12 * (zoomLevel / 100)
-  const timelineCanvasWidth = Math.max(1100, timelineDuration * pixelsPerSecond)
-  const markCount = 10
+  const playbackDuration = getPlaybackDuration(projectDuration, tracks);
+  const timelineDuration = Math.max(playbackDuration, 1);
+  const pixelsPerSecond = 12 * (zoomLevel / 100);
+  const timelineCanvasWidth = Math.max(
+    1100,
+    timelineDuration * pixelsPerSecond,
+  );
+  const markCount = 10;
   const marks = Array.from({ length: markCount }, (_, index) => {
-    const time = (timelineDuration / (markCount - 1)) * index
-    return formatSeconds(time)
-  })
-  const playheadLeftPercent = (clamp(currentTime, 0, timelineDuration) / timelineDuration) * 100
-  const zoomProgress = Math.min(100, Math.max(0, ((zoomLevel - 50) / 350) * 100))
+    const time = (timelineDuration / (markCount - 1)) * index;
+    return formatSeconds(time);
+  });
+  const playheadLeftPercent =
+    (clamp(currentTime, 0, timelineDuration) / timelineDuration) * 100;
+  const zoomProgress = Math.min(
+    100,
+    Math.max(0, ((zoomLevel - 50) / 350) * 100),
+  );
 
   const handleClipDragStart = (
     event: DragEvent<HTMLDivElement>,
     sourceTrackId: string,
     elementId: string,
     duration: number,
+    elementType: ElementKind,
   ) => {
     if (resizingElementIdRef.current === elementId) {
-      event.preventDefault()
-      return
+      event.preventDefault();
+      return;
     }
 
     const payload: DraggedTimelineElement = {
       elementId,
       sourceTrackId,
       duration,
-    }
+      elementType,
+    };
 
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData(DRAG_DATA_MIME, JSON.stringify(payload))
-    event.dataTransfer.setData('text/plain', elementId)
-    setDraggedElement(payload)
-    selectElement(elementId, 'timeline')
-  }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(DRAG_DATA_MIME, JSON.stringify(payload));
+    event.dataTransfer.setData("text/plain", elementId);
+    setDraggedElement(payload);
+    selectElement(elementId, "timeline");
+  };
 
   const startClipResize = (
     event: ReactMouseEvent<HTMLDivElement>,
@@ -182,102 +225,146 @@ export function TimelinePanel() {
     side: ResizeHandleSide,
   ) => {
     if (event.button !== 0) {
-      return
+      return;
     }
 
-    event.preventDefault()
-    event.stopPropagation()
-    selectElement(elementId, 'timeline')
+    event.preventDefault();
+    event.stopPropagation();
+    selectElement(elementId, "timeline");
 
-    const dragStartClientX = event.clientX
-    const clipEnd = startTime + duration
-    const safeCanvasWidth = Math.max(timelineCanvasWidth, 1)
-    const secondsPerPixel = timelineDuration / safeCanvasWidth
+    const dragStartClientX = event.clientX;
+    const clipEnd = startTime + duration;
+    const safeCanvasWidth = Math.max(timelineCanvasWidth, 1);
+    const secondsPerPixel = timelineDuration / safeCanvasWidth;
 
-    let lastStartTime = startTime
-    let lastDuration = duration
+    let lastStartTime = startTime;
+    let lastDuration = duration;
 
-    resizingElementIdRef.current = elementId
-    setResizingElementId(elementId)
+    resizingElementIdRef.current = elementId;
+    setResizingElementId(elementId);
 
-    const roundToMilliseconds = (value: number) => Math.round(value * 1000) / 1000
+    const roundToMilliseconds = (value: number) =>
+      Math.round(value * 1000) / 1000;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaSeconds = (moveEvent.clientX - dragStartClientX) * secondsPerPixel
+      const deltaSeconds =
+        (moveEvent.clientX - dragStartClientX) * secondsPerPixel;
 
-      if (side === 'right') {
-        const nextDuration = Math.max(MIN_ELEMENT_DURATION, roundToMilliseconds(duration + deltaSeconds))
+      if (side === "right") {
+        const nextDuration = Math.max(
+          MIN_ELEMENT_DURATION,
+          roundToMilliseconds(duration + deltaSeconds),
+        );
 
         if (Math.abs(nextDuration - lastDuration) < 0.0005) {
-          return
+          return;
         }
 
-        lastDuration = nextDuration
-        updateElementProperty(trackId, elementId, 'duration', nextDuration)
-        return
+        lastDuration = nextDuration;
+        updateElementProperty(trackId, elementId, "duration", nextDuration);
+        return;
       }
 
-      const maxStartTime = Math.max(clipEnd - MIN_ELEMENT_DURATION, 0)
-      const nextStartTime = clamp(roundToMilliseconds(startTime + deltaSeconds), 0, maxStartTime)
-      const nextDuration = Math.max(MIN_ELEMENT_DURATION, roundToMilliseconds(clipEnd - nextStartTime))
+      const maxStartTime = Math.max(clipEnd - MIN_ELEMENT_DURATION, 0);
+      const nextStartTime = clamp(
+        roundToMilliseconds(startTime + deltaSeconds),
+        0,
+        maxStartTime,
+      );
+      const nextDuration = Math.max(
+        MIN_ELEMENT_DURATION,
+        roundToMilliseconds(clipEnd - nextStartTime),
+      );
 
       if (
         Math.abs(nextStartTime - lastStartTime) < 0.0005 &&
         Math.abs(nextDuration - lastDuration) < 0.0005
       ) {
-        return
+        return;
       }
 
-      lastStartTime = nextStartTime
-      lastDuration = nextDuration
-      updateElementProperty(trackId, elementId, 'startTime', nextStartTime)
-      updateElementProperty(trackId, elementId, 'duration', nextDuration)
-    }
+      lastStartTime = nextStartTime;
+      lastDuration = nextDuration;
+      updateElementProperty(trackId, elementId, "startTime", nextStartTime);
+      updateElementProperty(trackId, elementId, "duration", nextDuration);
+    };
 
     const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      resizingElementIdRef.current = null
-      setResizingElementId(null)
-    }
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      resizingElementIdRef.current = null;
+      setResizingElementId(null);
+    };
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
-  const handleLaneDragOver = (event: DragEvent<HTMLDivElement>, trackId: string) => {
-    const payload = readDraggedElement(event) ?? draggedElement
+  const handleLaneDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    trackId: string,
+  ) => {
+    const payload = readDraggedElement(event) ?? draggedElement;
     if (!payload) {
-      return
+      return;
     }
 
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+
+    if (trackId !== NEW_TRACK_DROP_ID) {
+      const targetTrack = tracks.find((track) => track.id === trackId);
+      if (
+        !targetTrack ||
+        !canElementGoToTrack(payload.elementType, targetTrack)
+      ) {
+        setDropPreview((current) =>
+          current?.trackId === trackId ? null : current,
+        );
+        return;
+      }
+    }
 
     const nextStartTime = startTimeFromPointer(
       event.clientX,
       event.currentTarget.getBoundingClientRect(),
       timelineDuration,
       payload.duration,
-    )
+    );
 
     setDropPreview((current) => {
-      if (current && current.trackId === trackId && Math.abs(current.startTime - nextStartTime) < 0.05) {
-        return current
+      if (
+        current &&
+        current.trackId === trackId &&
+        Math.abs(current.startTime - nextStartTime) < 0.05
+      ) {
+        return current;
       }
-      return { trackId, startTime: nextStartTime }
-    })
-  }
+      return { trackId, startTime: nextStartTime };
+    });
+  };
 
   const handleProvisionalLaneDragOver = (event: DragEvent<HTMLDivElement>) => {
-    handleLaneDragOver(event, NEW_TRACK_DROP_ID)
-  }
+    handleLaneDragOver(event, NEW_TRACK_DROP_ID);
+  };
 
-  const handleLaneDrop = (event: DragEvent<HTMLDivElement>, targetTrackId: string) => {
-    event.preventDefault()
-    const payload = readDraggedElement(event) ?? draggedElement
+  const handleLaneDrop = (
+    event: DragEvent<HTMLDivElement>,
+    targetTrackId: string,
+  ) => {
+    event.preventDefault();
+    const payload = readDraggedElement(event) ?? draggedElement;
     if (!payload) {
-      return
+      return;
+    }
+
+    const targetTrack = tracks.find((track) => track.id === targetTrackId);
+    if (
+      !targetTrack ||
+      !canElementGoToTrack(payload.elementType, targetTrack)
+    ) {
+      setDropPreview(null);
+      return;
     }
 
     const nextStartTime = startTimeFromPointer(
@@ -285,19 +372,24 @@ export function TimelinePanel() {
       event.currentTarget.getBoundingClientRect(),
       timelineDuration,
       payload.duration,
-    )
+    );
 
-    moveElement(payload.sourceTrackId, payload.elementId, targetTrackId, nextStartTime)
-    selectElement(payload.elementId, 'timeline')
-    setDraggedElement(null)
-    setDropPreview(null)
-  }
+    moveElement(
+      payload.sourceTrackId,
+      payload.elementId,
+      targetTrackId,
+      nextStartTime,
+    );
+    selectElement(payload.elementId, "timeline");
+    setDraggedElement(null);
+    setDropPreview(null);
+  };
 
   const handleProvisionalLaneDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const payload = readDraggedElement(event) ?? draggedElement
+    event.preventDefault();
+    const payload = readDraggedElement(event) ?? draggedElement;
     if (!payload) {
-      return
+      return;
     }
 
     const nextStartTime = startTimeFromPointer(
@@ -305,57 +397,70 @@ export function TimelinePanel() {
       event.currentTarget.getBoundingClientRect(),
       timelineDuration,
       payload.duration,
-    )
+    );
 
-    const nextTrackId = buildTrackId(tracks.length + 1)
+    const nextTrackId = buildTrackId(tracks.length + 1);
     const nextTrack = {
       id: nextTrackId,
       name: `Pista ${tracks.length + 1}`,
+      kind: getBucketFromElementType(payload.elementType),
       elements: [],
-    }
+    };
 
-    createTrack(nextTrack)
-    moveElement(payload.sourceTrackId, payload.elementId, nextTrackId, nextStartTime)
-    selectElement(payload.elementId, 'timeline')
-    setDraggedElement(null)
-    setDropPreview(null)
-  }
+    createTrack(nextTrack);
+    moveElement(
+      payload.sourceTrackId,
+      payload.elementId,
+      nextTrackId,
+      nextStartTime,
+    );
+    selectElement(payload.elementId, "timeline");
+    setDraggedElement(null);
+    setDropPreview(null);
+  };
 
   const handleClipDragEnd = () => {
-    setDraggedElement(null)
-    setDropPreview(null)
-  }
+    setDraggedElement(null);
+    setDropPreview(null);
+  };
 
   const handleTimelineWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
+    event.preventDefault();
 
-    const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+    const dominantDelta =
+      Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
     if (dominantDelta === 0) {
-      return
+      return;
     }
 
-    const secondsPerPixel = timelineDuration / Math.max(timelineCanvasWidth, 1)
-    const sensitivity = event.shiftKey ? 0.2 : 0.5
-    const nextTime = clamp(currentTime + dominantDelta * secondsPerPixel * sensitivity, 0, timelineDuration)
-    seek(nextTime)
-  }
+    const secondsPerPixel = timelineDuration / Math.max(timelineCanvasWidth, 1);
+    const sensitivity = event.shiftKey ? 0.2 : 0.5;
+    const nextTime = clamp(
+      currentTime + dominantDelta * secondsPerPixel * sensitivity,
+      0,
+      timelineDuration,
+    );
+    seek(nextTime);
+  };
 
   const startScrubbing = (event: ReactMouseEvent<HTMLElement>) => {
     if (!timelineSurfaceRef.current || event.button !== 0) {
-      return
+      return;
     }
 
-    event.preventDefault()
-    const wasPlaying = useEditorStore.getState().isPlaying
-    resumePlaybackAfterScrubRef.current = wasPlaying
+    event.preventDefault();
+    const wasPlaying = useEditorStore.getState().isPlaying;
+    resumePlaybackAfterScrubRef.current = wasPlaying;
 
     if (wasPlaying) {
-      pause()
+      pause();
     }
 
     const scrubToClientX = (clientX: number) => {
       if (!timelineSurfaceRef.current) {
-        return
+        return;
       }
 
       const nextTime = startTimeFromPointer(
@@ -363,31 +468,31 @@ export function TimelinePanel() {
         timelineSurfaceRef.current.getBoundingClientRect(),
         timelineDuration,
         0,
-      )
-      seek(nextTime)
-    }
+      );
+      seek(nextTime);
+    };
 
-    scrubToClientX(event.clientX)
-    setIsScrubbing(true)
+    scrubToClientX(event.clientX);
+    setIsScrubbing(true);
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      scrubToClientX(moveEvent.clientX)
-    }
+      scrubToClientX(moveEvent.clientX);
+    };
 
     const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      setIsScrubbing(false)
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setIsScrubbing(false);
 
       if (resumePlaybackAfterScrubRef.current) {
-        play()
+        play();
       }
-      resumePlaybackAfterScrubRef.current = false
-    }
+      resumePlaybackAfterScrubRef.current = false;
+    };
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   return (
     <section className="col-span-3 row-start-2 flex min-h-0 flex-col border-t border-[#2a2a34] bg-[#1a1a20]">
@@ -434,7 +539,10 @@ export function TimelinePanel() {
             <ZoomOut className="h-4 w-4" />
           </button>
           <div className="h-[3px] w-20 overflow-hidden rounded bg-[#25252e]">
-            <div className="h-full rounded bg-[#6b7280]" style={{ width: `${zoomProgress}%` }} />
+            <div
+              className="h-full rounded bg-[#6b7280]"
+              style={{ width: `${zoomProgress}%` }}
+            />
           </div>
           <button
             aria-label="Acercar timeline"
@@ -444,14 +552,16 @@ export function TimelinePanel() {
           >
             <ZoomIn className="h-4 w-4" />
           </button>
-          <span className="min-w-[38px] text-[11px] tabular-nums text-[#6b7280]">{zoomLevel}%</span>
+          <span className="min-w-[38px] text-[11px] tabular-nums text-[#6b7280]">
+            {zoomLevel}%
+          </span>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="w-[180px] shrink-0 overflow-y-auto border-r border-[#2a2a34] pt-7 max-[1440px]:w-[165px] max-[1280px]:w-[150px] max-[1024px]:w-[130px]">
           {tracks.map((track, index) => {
-            const kind = getTrackKind(track.elements[0]?.type)
+            const kind = getTrackKind(track.elements[0]?.type);
             return (
               <div
                 className="group flex h-[38px] items-center gap-2 border-b border-white/[0.03] px-2.5 max-[1024px]:h-[34px]"
@@ -471,7 +581,7 @@ export function TimelinePanel() {
                     className="flex h-[22px] w-[22px] items-center justify-center rounded-[3px] text-[#6b7280] transition hover:bg-[#25252e] hover:text-[#f0f0f4]"
                     type="button"
                   >
-                    {kind === 'audio' ? (
+                    {kind === "audio" ? (
                       <Volume2 className="h-[13px] w-[13px]" />
                     ) : (
                       <Eye className="h-[13px] w-[13px]" />
@@ -486,7 +596,7 @@ export function TimelinePanel() {
                   </button>
                 </div>
               </div>
-            )
+            );
           })}
           {draggedElement && (
             <div
@@ -512,7 +622,10 @@ export function TimelinePanel() {
             className="relative"
             data-testid="timeline-surface"
             ref={timelineSurfaceRef}
-            style={{ minWidth: `${timelineCanvasWidth}px`, width: `${timelineCanvasWidth}px` }}
+            style={{
+              minWidth: `${timelineCanvasWidth}px`,
+              width: `${timelineCanvasWidth}px`,
+            }}
           >
             <div
               className="sticky top-0 z-[5] h-7 border-b border-[#2a2a34] bg-[#1e1e26]"
@@ -523,17 +636,23 @@ export function TimelinePanel() {
                 <span
                   className="absolute top-0 text-[10px] leading-7 text-[#6b7280] tabular-nums after:absolute after:bottom-0 after:left-[-4px] after:h-2 after:w-px after:bg-[#35353f]"
                   key={`${mark}-${index}`}
-                  style={{ left: `${(index / (marks.length - 1)) * 100}%`, transform: 'translateX(4px)' }}
+                  style={{
+                    left: `${(index / (marks.length - 1)) * 100}%`,
+                    transform: "translateX(4px)",
+                  }}
                 >
                   {mark}
                 </span>
               ))}
             </div>
 
-            <div className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5" style={{ left: `${playheadLeftPercent}%` }}>
+            <div
+              className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5"
+              style={{ left: `${playheadLeftPercent}%` }}
+            >
               <button
                 aria-label="Mover playhead"
-                className={`pointer-events-auto absolute left-[-5px] top-2 h-3 w-3 bg-[#ef4444] [clip-path:polygon(0_0,100%_0,50%_100%)] ${isScrubbing ? 'brightness-125' : ''}`}
+                className={`pointer-events-auto absolute left-[-5px] top-2 h-3 w-3 bg-[#ef4444] [clip-path:polygon(0_0,100%_0,50%_100%)] ${isScrubbing ? "brightness-125" : ""}`}
                 data-testid="timeline-playhead-handle"
                 onMouseDown={startScrubbing}
                 type="button"
@@ -545,9 +664,12 @@ export function TimelinePanel() {
               {tracks.map((track) => (
                 <div
                   className="relative h-[38px] border-b border-white/[0.03] hover:bg-white/[0.01] max-[1024px]:h-[34px]"
+                  data-testid={`timeline-lane-${track.id}`}
                   key={`lane-${track.id}`}
                   onDragLeave={() =>
-                    setDropPreview((current) => (current?.trackId === track.id ? null : current))
+                    setDropPreview((current) =>
+                      current?.trackId === track.id ? null : current,
+                    )
                   }
                   onDragOver={(event) => handleLaneDragOver(event, track.id)}
                   onDrop={(event) => handleLaneDrop(event, track.id)}
@@ -555,23 +677,35 @@ export function TimelinePanel() {
                   {dropPreview?.trackId === track.id && (
                     <div
                       className="pointer-events-none absolute inset-y-0 z-[2] w-px bg-white/70"
-                      style={{ left: `${(dropPreview.startTime / timelineDuration) * 100}%` }}
+                      style={{
+                        left: `${(dropPreview.startTime / timelineDuration) * 100}%`,
+                      }}
                     />
                   )}
                   {track.elements.map((element) => (
                     <div
-                      className={`absolute top-[3px] flex h-[calc(100%-6px)] items-center overflow-hidden rounded-[4px] ${element.id === resizingElementId ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing'} ${clipByType[element.type]} ${element.id === selectedElementId ? 'ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]' : ''}`}
+                      className={`absolute top-[3px] flex h-[calc(100%-6px)] items-center overflow-hidden rounded-[4px] ${element.id === resizingElementId ? "cursor-col-resize" : "cursor-grab active:cursor-grabbing"} ${clipByType[element.type]} ${element.id === selectedElementId ? "ring-2 ring-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" : ""}`}
                       data-testid={`timeline-clip-${element.id}`}
                       draggable={element.id !== resizingElementId}
                       onDragEnd={handleClipDragEnd}
                       onDragStart={(event) =>
-                        handleClipDragStart(event, track.id, element.id, element.duration)
+                        handleClipDragStart(
+                          event,
+                          track.id,
+                          element.id,
+                          element.duration,
+                          element.type,
+                        )
                       }
                       key={element.id}
-                      onClick={() => selectElement(element.id, 'timeline')}
-                      style={styleFromTime(element.startTime, element.duration, timelineDuration)}
+                      onClick={() => selectElement(element.id, "timeline")}
+                      style={styleFromTime(
+                        element.startTime,
+                        element.duration,
+                        timelineDuration,
+                      )}
                     >
-                      {element.type === 'audio' && (
+                      {element.type === "audio" && (
                         <div className="absolute inset-x-[6px] inset-y-1 z-[1] rounded-[2px] bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.12)_0px,rgba(255,255,255,0.12)_1px,transparent_1px,transparent_4px)]" />
                       )}
                       <span className="relative z-[2] truncate px-2 text-[10px] font-semibold text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">
@@ -581,14 +715,28 @@ export function TimelinePanel() {
                         className="absolute inset-y-0 left-0 z-[3] w-1.5 cursor-col-resize rounded-l-[4px] transition hover:bg-white/20"
                         data-testid={`timeline-resize-left-${element.id}`}
                         onMouseDown={(event) =>
-                          startClipResize(event, track.id, element.id, element.startTime, element.duration, 'left')
+                          startClipResize(
+                            event,
+                            track.id,
+                            element.id,
+                            element.startTime,
+                            element.duration,
+                            "left",
+                          )
                         }
                       />
                       <div
                         className="absolute inset-y-0 right-0 z-[3] w-1.5 cursor-col-resize rounded-r-[4px] transition hover:bg-white/20"
                         data-testid={`timeline-resize-right-${element.id}`}
                         onMouseDown={(event) =>
-                          startClipResize(event, track.id, element.id, element.startTime, element.duration, 'right')
+                          startClipResize(
+                            event,
+                            track.id,
+                            element.id,
+                            element.startTime,
+                            element.duration,
+                            "right",
+                          )
                         }
                       />
                     </div>
@@ -600,7 +748,9 @@ export function TimelinePanel() {
                   className="relative h-[38px] border-b border-dashed border-[#6366f1]/50 bg-[#6366f1]/[0.05] hover:bg-[#6366f1]/[0.08] max-[1024px]:h-[34px]"
                   data-testid="timeline-new-track-lane"
                   onDragLeave={() =>
-                    setDropPreview((current) => (current?.trackId === NEW_TRACK_DROP_ID ? null : current))
+                    setDropPreview((current) =>
+                      current?.trackId === NEW_TRACK_DROP_ID ? null : current,
+                    )
                   }
                   onDragOver={handleProvisionalLaneDragOver}
                   onDrop={handleProvisionalLaneDrop}
@@ -608,7 +758,9 @@ export function TimelinePanel() {
                   {dropPreview?.trackId === NEW_TRACK_DROP_ID && (
                     <div
                       className="pointer-events-none absolute inset-y-0 z-[2] w-px bg-[#c7d2fe]"
-                      style={{ left: `${(dropPreview.startTime / timelineDuration) * 100}%` }}
+                      style={{
+                        left: `${(dropPreview.startTime / timelineDuration) * 100}%`,
+                      }}
                     />
                   )}
                   <div className="pointer-events-none absolute inset-0 flex items-center px-3 text-[10px] font-medium uppercase tracking-[0.04em] text-[#a5b4fc]/90">
@@ -621,5 +773,5 @@ export function TimelinePanel() {
         </div>
       </div>
     </section>
-  )
+  );
 }
