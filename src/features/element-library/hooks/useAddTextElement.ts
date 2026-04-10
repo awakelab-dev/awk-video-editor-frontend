@@ -1,10 +1,8 @@
 import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
+import { TEXT_TRACK_ID, TEXT_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { TextElement, Track } from '../../../shared/types/editor'
 import type { TextPreset } from '../types'
-
-const TEXT_TRACK_ID = 'track-text'
-const TEXT_TRACK_NAME = 'Textos'
 
 const TEXT_PRESET_CONFIG: Record<
   TextPreset,
@@ -110,6 +108,7 @@ function createTextTrack(): Track {
   return {
     id: TEXT_TRACK_ID,
     name: TEXT_TRACK_NAME,
+    kind: 'text',
     elements: [],
   }
 }
