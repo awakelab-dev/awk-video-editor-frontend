@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaybackWorkspace } from './PlaybackWorkspace'
 import { useEditorStore } from '../../../shared/store'
-import type { TextElement } from '../../../shared/types/editor'
+import type { ShapeElement, TextElement } from '../../../shared/types/editor'
 
 class ResizeObserverMock {
   observe() {}
@@ -32,6 +32,27 @@ function buildTextElement(): TextElement {
     lineHeight: 1.1,
     letterSpacing: 0,
     textAlign: 'left',
+  }
+}
+
+function buildShapeElement(): ShapeElement {
+  return {
+    id: 'shape-1',
+    type: 'shape',
+    name: 'Rectangulo',
+    startTime: 0,
+    duration: 10,
+    opacity: 1,
+    x: 140,
+    y: 120,
+    width: 300,
+    height: 160,
+    rotation: 0,
+    shapeType: 'rectangle',
+    fillColor: '#ef4444',
+    strokeColor: '#ffffff',
+    strokeWidth: 2,
+    cornerRadius: 12,
   }
 }
 
@@ -90,6 +111,35 @@ describe('PlaybackWorkspace', () => {
       expect(text.x).toBe(-60)
       expect(text.y).toBe(-20)
     }
+  })
+
+  it('permite arrastrar formas en el renderer y actualiza su posicion', () => {
+    useEditorStore.setState({
+      currentTime: 0,
+      tracks: [
+        {
+          id: 'track-shapes',
+          name: 'Formas',
+          elements: [buildShapeElement()],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    const overlay = screen.getByTestId('playback-shape-overlay')
+    fireEvent.mouseDown(overlay, { button: 0, clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 160, clientY: 150 })
+    fireEvent.mouseUp(window)
+
+    const shape = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(shape?.type).toBe('shape')
+    if (shape?.type === 'shape') {
+      expect(shape.x).toBe(200)
+      expect(shape.y).toBe(170)
+    }
+    expect(useEditorStore.getState().selectedElementId).toBe('shape-1')
+    expect(useEditorStore.getState().selectionSource).toBe('canvas')
   })
 
   it('renderiza todos los textos activos de todos los tracks en el mismo tiempo', () => {

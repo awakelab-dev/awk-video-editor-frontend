@@ -184,7 +184,7 @@ export function PlaybackWorkspace() {
   ) => {
     selectElement(context.element.id, 'canvas')
 
-    if (context.element.type !== 'text' || !previewRef.current || event.button !== 0) {
+    if (!previewRef.current || event.button !== 0) {
       return
     }
 
@@ -278,7 +278,8 @@ export function PlaybackWorkspace() {
               if (context.element.type === 'image') {
                 return (
                   <div
-                    className={`overflow-hidden ${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                    className={`select-none overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-move'} ${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                    data-testid="playback-image-overlay"
                     key={context.element.id}
                     onMouseDown={(event) => handleVisualMouseDown(event, context)}
                     style={style}
@@ -297,7 +298,8 @@ export function PlaybackWorkspace() {
               if (context.element.type === 'video') {
                 return (
                   <div
-                    className={`relative flex items-center justify-center text-[11px] font-semibold text-white/70 ${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                    className={`relative flex select-none items-center justify-center text-[11px] font-semibold text-white/70 ${isDragging ? 'cursor-grabbing' : 'cursor-move'} ${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                    data-testid="playback-video-overlay"
                     key={context.element.id}
                     onMouseDown={(event) => handleVisualMouseDown(event, context)}
                     style={style}
@@ -309,7 +311,8 @@ export function PlaybackWorkspace() {
 
               return (
                 <div
-                  className={`${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                  className={`select-none ${isDragging ? 'cursor-grabbing' : 'cursor-move'} ${isSelected ? 'ring-1 ring-white/60' : ''}`}
+                  data-testid="playback-shape-overlay"
                   key={context.element.id}
                   onMouseDown={(event) => handleVisualMouseDown(event, context)}
                   style={style}

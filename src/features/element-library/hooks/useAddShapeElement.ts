@@ -1,10 +1,8 @@
 import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
+import { MEDIA_TRACK_ID, MEDIA_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { ShapeElement, Track } from '../../../shared/types/editor'
 import type { ShapePreset } from '../types'
-
-const SHAPE_TRACK_ID = 'track-shape'
-const SHAPE_TRACK_NAME = 'Formas'
 
 const SHAPE_PRESET_CONFIG: Record<
   ShapePreset,
@@ -104,10 +102,11 @@ function buildShapeElement(
   return element
 }
 
-function createShapeTrack(): Track {
+function createMediaTrack(): Track {
   return {
-    id: SHAPE_TRACK_ID,
-    name: SHAPE_TRACK_NAME,
+    id: MEDIA_TRACK_ID,
+    name: MEDIA_TRACK_NAME,
+    kind: 'media',
     elements: [],
   }
 }
@@ -121,15 +120,15 @@ export function useAddShapeElement() {
 
   return useCallback(
     (options: AddShapeOptions = {}) => {
-      let shapeTrack = tracks.find((track) => track.id === SHAPE_TRACK_ID)
-      if (!shapeTrack) {
-        shapeTrack = createShapeTrack()
-        createTrack(shapeTrack)
+      let mediaTrack = tracks.find((track) => track.id === MEDIA_TRACK_ID)
+      if (!mediaTrack) {
+        mediaTrack = createMediaTrack()
+        createTrack(mediaTrack)
       }
 
-      const sequence = shapeTrack.elements.filter((element) => element.type === 'shape').length
+      const sequence = mediaTrack.elements.filter((element) => element.type === 'shape').length
       const element = buildShapeElement(sequence, options, currentTime)
-      addElement(shapeTrack.id, element)
+      addElement(mediaTrack.id, element)
       selectElement(element.id, 'element-library')
       return element
     },

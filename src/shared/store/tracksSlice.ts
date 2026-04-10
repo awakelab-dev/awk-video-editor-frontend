@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { EditorElement, Track } from '../types/editor'
 import type { EditorStore } from './index'
+import { buildDefaultTracks, canElementGoToTrack, isProtectedTrack } from './defaultTracks'
 
 type KeysOfUnion<T> = T extends T ? keyof T : never
 type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
@@ -30,7 +31,7 @@ export type TracksSlice = {
 }
 
 export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> = (set) => ({
-  tracks: [],
+  tracks: buildDefaultTracks(),
   createTrack: (track) =>
     set((state) => ({
       tracks: [...state.tracks, track],
@@ -53,6 +54,10 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
       const element = sourceTrack?.elements.find((trackElement) => trackElement.id === elementId)
 
       if (!sourceTrack || !targetTrack || !element) {
+        return { tracks: state.tracks }
+      }
+
+      if (!canElementGoToTrack(element.type, targetTrack)) {
         return { tracks: state.tracks }
       }
 
@@ -135,9 +140,15 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
       ),
     })),
   removeTrack: (trackId) =>
-    set((state) => ({
-      tracks: state.tracks.filter((track) => track.id !== trackId),
-    })),
+    set((state) => {
+      if (isProtectedTrack(trackId)) {
+        return { tracks: state.tracks }
+      }
+
+      return {
+        tracks: state.tracks.filter((track) => track.id !== trackId),
+      }
+    }),
   updateElementProperty: (trackId, elementId, property, value) =>
     set((state) => ({
       tracks: state.tracks.map((track) =>
