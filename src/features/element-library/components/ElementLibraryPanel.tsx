@@ -58,6 +58,7 @@ export function ElementLibraryPanel() {
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const importAsset = useEditorStore((state) => state.importAsset)
+  const resolution = useEditorStore((state) => state.resolution)
   const dragOverlayElRef = useRef<HTMLDivElement | null>(null)
   const dragOverlayCleanupRef = useRef<(() => void) | null>(null)
   const activeDragPayloadRef = useRef<DragPayload | null>(null)
@@ -268,6 +269,25 @@ export function ElementLibraryPanel() {
                             clientY,
                           }
                           console.log('[ElementLibrary][drag] end', detail)
+
+                          // Translate drop point to canvas coordinates and create the element now.
+                          if (preview) {
+                            const rect = preview.getBoundingClientRect()
+                            const relX = (clientX - rect.left) / Math.max(rect.width, 1)
+                            const relY = (clientY - rect.top) / Math.max(rect.height, 1)
+                            const dropPosition = {
+                              x: Math.round(relX * resolution.w),
+                              y: Math.round(relY * resolution.h),
+                            }
+
+                            if (activePayload.kind === 'text') {
+                              addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                            } else {
+                              addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                            }
+                          }
+
+                          // Still emit event so other parts can react if needed.
                           window.dispatchEvent(new CustomEvent<DragEndDetail>('element-library:drag-end', { detail }))
                         }
 
