@@ -80,6 +80,7 @@ export type MediaAssetType = MediaElement['type']
 export interface Track {
   id: string
   name: string
+  kind?: 'text' | 'audio' | 'media'
   elements: EditorElement[]
 }
 
