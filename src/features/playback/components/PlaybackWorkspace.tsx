@@ -120,6 +120,8 @@ export function PlaybackWorkspace() {
   const selectElement = useEditorStore((state) => state.selectElement)
   const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
   const isPlaying = useEditorStore((state) => state.isPlaying)
+  const masterVolume = useEditorStore((state) => state.masterVolume)
+  const setMasterVolume = useEditorStore((state) => state.setMasterVolume)
   const play = useEditorStore((state) => state.play)
   const pause = useEditorStore((state) => state.pause)
   const seek = useEditorStore((state) => state.seek)
@@ -127,6 +129,8 @@ export function PlaybackWorkspace() {
   const [previewScale, setPreviewScale] = useState(1)
   const [draggingElementId, setDraggingElementId] = useState<string | null>(null)
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const lastNonZeroVolumeRef = useRef(1)
 
   const playbackDuration = useMemo(() => getPlaybackDuration(projectDuration, tracks), [projectDuration, tracks])
 
@@ -182,6 +186,18 @@ export function PlaybackWorkspace() {
       .filter((element): element is AudioElement => element.type === 'audio' && isElementActiveAtTime(element, currentTime))
   }, [currentTime, tracks])
 
+  const activeVideoElements = useMemo<VideoElement[]>(() => {
+    return tracks
+      .flatMap((track) => track.elements)
+      .filter((element): element is VideoElement => element.type === 'video' && isElementActiveAtTime(element, currentTime))
+  }, [currentTime, tracks])
+
+  useEffect(() => {
+    if (masterVolume > 0) {
+      lastNonZeroVolumeRef.current = masterVolume
+    }
+  }, [masterVolume])
+
   useEffect(() => {
     // Ensure we pause and cleanup audios that are no longer active.
     const activeIds = new Set(activeAudioElements.map((a) => a.id))
@@ -202,8 +218,8 @@ export function PlaybackWorkspace() {
       }
 
       audio.playbackRate = element.playbackRate
-      audio.muted = element.muted
-      audio.volume = clamp(element.volume, 0, 1)
+      audio.muted = element.muted || masterVolume <= 0
+      audio.volume = clamp(element.volume * masterVolume, 0, 1)
 
       const targetTime = Math.max(0, currentTime - element.startTime)
       if (Number.isFinite(targetTime) && Math.abs(audio.currentTime - targetTime) > 0.15) {
@@ -222,7 +238,45 @@ export function PlaybackWorkspace() {
         audio.pause()
       }
     }
-  }, [activeAudioElements, currentTime, isPlaying])
+  }, [activeAudioElements, currentTime, isPlaying, masterVolume])
+
+  useEffect(() => {
+    const activeIds = new Set(activeVideoElements.map((video) => video.id))
+
+    for (const [id, video] of videoRefs.current.entries()) {
+      if (!activeIds.has(id)) {
+        video.pause()
+      }
+    }
+
+    for (const element of activeVideoElements) {
+      const video = videoRefs.current.get(element.id)
+      if (!video) {
+        continue
+      }
+
+      video.playbackRate = element.playbackRate
+      video.muted = element.muted || masterVolume <= 0
+      video.volume = clamp(element.volume * masterVolume, 0, 1)
+
+      const targetTime = Math.max(0, currentTime - element.startTime + element.trimStart)
+      if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.15) {
+        try {
+          video.currentTime = targetTime
+        } catch {
+          // ignore seek failures
+        }
+      }
+
+      if (isPlaying) {
+        video.play().catch(() => {
+          // autoplay restrictions may block until user gesture
+        })
+      } else {
+        video.pause()
+      }
+    }
+  }, [activeVideoElements, currentTime, isPlaying, masterVolume])
 
   const hasProjectContent = useMemo(
     () => tracks.some((track) => track.elements.length > 0),
@@ -298,6 +352,22 @@ export function PlaybackWorkspace() {
     }
   }
 
+  const handleMasterVolumeChange = (nextPercent: number) => {
+    const safePercent = clamp(nextPercent, 0, 100)
+    setMasterVolume(safePercent / 100)
+  }
+
+  const toggleMasterMute = () => {
+    if (masterVolume <= 0) {
+      setMasterVolume(lastNonZeroVolumeRef.current > 0 ? lastNonZeroVolumeRef.current : 1)
+      return
+    }
+
+    setMasterVolume(0)
+  }
+
+  const masterVolumePercent = Math.round(clamp(masterVolume * 100, 0, 100))
+
   return (
     <section className="row-start-1 flex min-h-0 flex-col overflow-hidden bg-[#0d0d11]">
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
@@ -360,7 +430,19 @@ export function PlaybackWorkspace() {
                     onMouseDown={(event) => handleVisualMouseDown(event, context)}
                     style={style}
                   >
-                    <span className="rounded bg-black/55 px-2 py-1">Video: {context.element.name}</span>
+                    <video
+                      className="pointer-events-none h-full w-full object-cover"
+                      playsInline
+                      preload="auto"
+                      ref={(node) => {
+                        if (node) {
+                          videoRefs.current.set(context.element.id, node)
+                        } else {
+                          videoRefs.current.delete(context.element.id)
+                        }
+                      }}
+                      src={context.element.source}
+                    />
                   </div>
                 )
               }
@@ -421,14 +503,29 @@ export function PlaybackWorkspace() {
 
         <div className="flex items-center gap-1.5">
           <button
-            aria-label="Volumen"
+            aria-label={masterVolume > 0 ? 'Silenciar' : 'Activar sonido'}
             className="flex h-8 w-8 items-center justify-center rounded-[4px] text-[#9ca3af] transition hover:bg-[#25252e] hover:text-[#f0f0f4]"
+            onClick={toggleMasterMute}
             type="button"
           >
             <Volume2 className="h-[15px] w-[15px]" />
           </button>
-          <div className="h-1 w-[70px] overflow-hidden rounded bg-[#25252e] max-[1024px]:hidden">
-            <div className="h-full w-3/4 rounded bg-[#9ca3af] transition hover:bg-[#6366f1]" />
+          <div className="relative h-1 w-[70px] overflow-hidden rounded bg-[#25252e] max-[1024px]:hidden">
+            <div
+              className="h-full rounded bg-[#9ca3af] transition hover:bg-[#6366f1]"
+              style={{ width: `${masterVolumePercent}%` }}
+            />
+            <input
+              aria-label="Volumen master"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              data-testid="playback-master-volume"
+              max={100}
+              min={0}
+              onChange={(event) => handleMasterVolumeChange(Number(event.target.value))}
+              step={1}
+              type="range"
+              value={masterVolumePercent}
+            />
           </div>
           <button
             aria-label="Pantalla completa"

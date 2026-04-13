@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaybackWorkspace } from './PlaybackWorkspace'
 import { useEditorStore } from '../../../shared/store'
-import type { ShapeElement, TextElement } from '../../../shared/types/editor'
+import type { AudioElement, ShapeElement, TextElement } from '../../../shared/types/editor'
 
 class ResizeObserverMock {
   observe() {}
@@ -56,12 +56,30 @@ function buildShapeElement(): ShapeElement {
   }
 }
 
+function buildAudioElement(): AudioElement {
+  return {
+    id: 'audio-1',
+    type: 'audio',
+    name: 'Audio principal',
+    startTime: 0,
+    duration: 10,
+    opacity: 1,
+    source: '/audio.mp3',
+    playbackRate: 1,
+    volume: 0.5,
+    muted: false,
+    fadeIn: 0,
+    fadeOut: 0,
+  }
+}
+
 describe('PlaybackWorkspace', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     useEditorStore.setState({
       currentTime: 0,
       resolution: { w: 1920, h: 1080 },
+      masterVolume: 1,
       selectedElementId: null,
       selectionSource: null,
       tracks: [
@@ -193,5 +211,57 @@ describe('PlaybackWorkspace', () => {
 
     expect(screen.queryByText('Vista previa del video')).toBeNull()
     expect(screen.queryAllByTestId('playback-text-overlay')).toHaveLength(0)
+  })
+
+  it('aplica la barra de volumen al volumen real de reproducción de audio', () => {
+    const audioInstances: Array<{
+      volume: number
+      muted: boolean
+      playbackRate: number
+      currentTime: number
+      preload: string
+      play: ReturnType<typeof vi.fn>
+      pause: ReturnType<typeof vi.fn>
+    }> = []
+
+    class AudioMock {
+      volume = 1
+      muted = false
+      playbackRate = 1
+      currentTime = 0
+      preload = 'auto'
+      play = vi.fn().mockResolvedValue(undefined)
+      pause = vi.fn()
+
+      constructor(_source?: string) {
+        audioInstances.push(this)
+      }
+    }
+
+    vi.stubGlobal('Audio', AudioMock as unknown as typeof Audio)
+
+    useEditorStore.setState({
+      currentTime: 0,
+      isPlaying: false,
+      masterVolume: 1,
+      tracks: [
+        {
+          id: 'track-audio',
+          name: 'Audio',
+          elements: [buildAudioElement()],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    expect(audioInstances).toHaveLength(1)
+    expect(audioInstances[0]?.volume).toBeCloseTo(0.5, 3)
+
+    const masterVolumeSlider = screen.getByTestId('playback-master-volume')
+    fireEvent.change(masterVolumeSlider, { target: { value: '20' } })
+
+    expect(useEditorStore.getState().masterVolume).toBeCloseTo(0.2, 3)
+    expect(audioInstances[0]?.volume).toBeCloseTo(0.1, 3)
   })
 })
