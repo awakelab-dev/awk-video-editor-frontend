@@ -6,6 +6,7 @@ import { useElementCatalog } from '../hooks/useElementCatalog'
 import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
 import { useAddShapeElement } from '../hooks/useAddShapeElement'
+import { useAddAudioElement } from '../hooks/useAddAudioElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 
 type DragPayload =
@@ -53,6 +54,7 @@ export function ElementLibraryPanel() {
   const addElement = useAddElement()
   const addTextElement = useAddTextElement()
   const addShapeElement = useAddShapeElement()
+  const addAudioElement = useAddAudioElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
@@ -180,6 +182,14 @@ export function ElementLibraryPanel() {
                         handleAddTextPreset(item)
                       } else if (item.category === 'shapes' && item.shapePreset) {
                         handleAddShapePreset(item)
+                      } else if (item.type === 'audio') {
+                        // If the item comes from an imported asset (same id), create an audio element on the timeline.
+                        trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
+                        const created = addAudioElement({ assetId: item.id, label: item.name })
+                        if (!created) {
+                          // fallback: still emit the generic event for other listeners
+                          addElement(item)
+                        }
                       } else {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         addElement(item)

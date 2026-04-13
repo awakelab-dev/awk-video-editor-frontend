@@ -129,6 +129,7 @@ export function useAddShapeElement() {
 
       const sequence = shapeTrack.elements.filter((element) => element.type === 'shape').length
       const element = buildShapeElement(sequence, options, currentTime)
+      console.log('[ElementLibrary][shape] created', { trackId: shapeTrack.id, element })
       addElement(shapeTrack.id, element)
       selectElement(element.id, 'element-library')
       return element

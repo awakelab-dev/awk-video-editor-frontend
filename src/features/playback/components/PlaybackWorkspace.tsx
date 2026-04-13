@@ -2,7 +2,7 @@ import { Maximize2, Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-r
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '../../../shared/store'
-import type { EditorElement, ImageElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
+import type { AudioElement, EditorElement, ImageElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 import { usePlaybackEngine } from '../hooks/usePlaybackEngine'
 import { clamp, formatTimecode, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
 
@@ -124,6 +124,7 @@ export function PlaybackWorkspace() {
   const previewRef = useRef<HTMLDivElement | null>(null)
   const [previewScale, setPreviewScale] = useState(1)
   const [draggingElementId, setDraggingElementId] = useState<string | null>(null)
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
 
   const playbackDuration = useMemo(() => getPlaybackDuration(projectDuration, tracks), [projectDuration, tracks])
 
@@ -172,6 +173,54 @@ export function PlaybackWorkspace() {
 
     return visible
   }, [currentTime, tracks])
+
+  const activeAudioElements = useMemo<AudioElement[]>(() => {
+    return tracks
+      .flatMap((track) => track.elements)
+      .filter((element): element is AudioElement => element.type === 'audio' && isElementActiveAtTime(element, currentTime))
+  }, [currentTime, tracks])
+
+  useEffect(() => {
+    // Ensure we pause and cleanup audios that are no longer active.
+    const activeIds = new Set(activeAudioElements.map((a) => a.id))
+
+    for (const [id, audio] of audioRefs.current.entries()) {
+      if (!activeIds.has(id)) {
+        audio.pause()
+        audioRefs.current.delete(id)
+      }
+    }
+
+    for (const element of activeAudioElements) {
+      let audio = audioRefs.current.get(element.id)
+      if (!audio) {
+        audio = new Audio(element.source)
+        audio.preload = 'auto'
+        audioRefs.current.set(element.id, audio)
+      }
+
+      audio.playbackRate = element.playbackRate
+      audio.muted = element.muted
+      audio.volume = clamp(element.volume, 0, 1)
+
+      const targetTime = Math.max(0, currentTime - element.startTime)
+      if (Number.isFinite(targetTime) && Math.abs(audio.currentTime - targetTime) > 0.15) {
+        try {
+          audio.currentTime = targetTime
+        } catch {
+          // ignore seek failures
+        }
+      }
+
+      if (isPlaying) {
+        audio.play().catch(() => {
+          // autoplay restrictions may block until user gesture
+        })
+      } else {
+        audio.pause()
+      }
+    }
+  }, [activeAudioElements, currentTime, isPlaying])
 
   const hasProjectContent = useMemo(
     () => tracks.some((track) => track.elements.length > 0),
