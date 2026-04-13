@@ -5,7 +5,7 @@ import { useEditorStore } from '../../../shared/store'
 import { AUDIO_TRACK_ID, MEDIA_TRACK_ID, TEXT_TRACK_ID } from '../../../shared/store/defaultTracks'
 import type { TextElement } from '../../../shared/types/editor'
 
-function buildTextElement(): TextElement {
+function buildTextElement(overrides: Partial<TextElement> = {}): TextElement {
   return {
     id: 'text-1',
     type: 'text',
@@ -27,6 +27,7 @@ function buildTextElement(): TextElement {
     lineHeight: 1.1,
     letterSpacing: 0,
     textAlign: 'left',
+    ...overrides,
   }
 }
 
@@ -105,6 +106,71 @@ describe('TimelinePanel', () => {
     expect(element?.type).toBe('text')
     if (element?.type === 'text') {
       expect(element.startTime).toBeCloseTo(2, 3)
+      expect(element.duration).toBeCloseTo(8, 3)
+    }
+  })
+
+  it('no permite estirar a la derecha por encima del siguiente clip', () => {
+    useEditorStore.setState({
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto',
+          elements: [
+            buildTextElement({ id: 'text-1', name: 'Clip A', text: 'Clip A', startTime: 0, duration: 10 }),
+            buildTextElement({ id: 'text-2', name: 'Clip B', text: 'Clip B', startTime: 12, duration: 6 }),
+          ],
+        },
+      ],
+    })
+
+    render(<TimelinePanel />)
+
+    const rightHandle = screen.getByTestId('timeline-resize-right-text-1')
+    fireEvent.mouseDown(rightHandle, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 2000, clientY: 20 })
+    fireEvent.mouseUp(window)
+
+    const track = useEditorStore.getState().tracks[0]
+    const first = track?.elements.find((element) => element.id === 'text-1')
+    const second = track?.elements.find((element) => element.id === 'text-2')
+
+    expect(first?.type).toBe('text')
+    expect(second?.type).toBe('text')
+    if (first?.type === 'text' && second?.type === 'text') {
+      expect(first.startTime).toBeCloseTo(0, 3)
+      expect(first.duration).toBeCloseTo(12, 3)
+      expect(second.startTime).toBeCloseTo(12, 3)
+    }
+  })
+
+  it('no permite estirar a la izquierda por encima del clip anterior', () => {
+    useEditorStore.setState({
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto',
+          elements: [
+            buildTextElement({ id: 'text-0', name: 'Clip 0', text: 'Clip 0', startTime: 0, duration: 4 }),
+            buildTextElement({ id: 'text-1', name: 'Clip 1', text: 'Clip 1', startTime: 6, duration: 6 }),
+          ],
+        },
+      ],
+    })
+
+    render(<TimelinePanel />)
+
+    const leftHandle = screen.getByTestId('timeline-resize-left-text-1')
+    fireEvent.mouseDown(leftHandle, { button: 0, clientX: 300, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: -1000, clientY: 20 })
+    fireEvent.mouseUp(window)
+
+    const track = useEditorStore.getState().tracks[0]
+    const element = track?.elements.find((clip) => clip.id === 'text-1')
+
+    expect(element?.type).toBe('text')
+    if (element?.type === 'text') {
+      expect(element.startTime).toBeCloseTo(4, 3)
       expect(element.duration).toBeCloseTo(8, 3)
     }
   })

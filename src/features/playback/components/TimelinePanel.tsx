@@ -236,6 +236,25 @@ export function TimelinePanel() {
     const clipEnd = startTime + duration;
     const safeCanvasWidth = Math.max(timelineCanvasWidth, 1);
     const secondsPerPixel = timelineDuration / safeCanvasWidth;
+    const resizeTrack = tracks.find((track) => track.id === trackId);
+    const sortedElements = [...(resizeTrack?.elements ?? [])].sort(
+      (a, b) => a.startTime - b.startTime,
+    );
+    const elementIndex = sortedElements.findIndex(
+      (element) => element.id === elementId,
+    );
+    const previousElement =
+      elementIndex > 0 ? sortedElements[elementIndex - 1] : null;
+    const nextElement =
+      elementIndex >= 0 && elementIndex < sortedElements.length - 1
+        ? sortedElements[elementIndex + 1]
+        : null;
+    const minStartFromPrevious = previousElement
+      ? previousElement.startTime + previousElement.duration
+      : 0;
+    const maxEndFromNext = nextElement
+      ? nextElement.startTime
+      : Number.POSITIVE_INFINITY;
 
     let lastStartTime = startTime;
     let lastDuration = duration;
@@ -251,9 +270,16 @@ export function TimelinePanel() {
         (moveEvent.clientX - dragStartClientX) * secondsPerPixel;
 
       if (side === "right") {
-        const nextDuration = Math.max(
-          MIN_ELEMENT_DURATION,
+        const maxDurationByNext = Number.isFinite(maxEndFromNext)
+          ? Math.max(
+              MIN_ELEMENT_DURATION,
+              roundToMilliseconds(maxEndFromNext - startTime),
+            )
+          : Number.POSITIVE_INFINITY;
+        const nextDuration = clamp(
           roundToMilliseconds(duration + deltaSeconds),
+          MIN_ELEMENT_DURATION,
+          maxDurationByNext,
         );
 
         if (Math.abs(nextDuration - lastDuration) < 0.0005) {
@@ -265,10 +291,13 @@ export function TimelinePanel() {
         return;
       }
 
-      const maxStartTime = Math.max(clipEnd - MIN_ELEMENT_DURATION, 0);
+      const maxStartTime = Math.max(
+        clipEnd - MIN_ELEMENT_DURATION,
+        minStartFromPrevious,
+      );
       const nextStartTime = clamp(
         roundToMilliseconds(startTime + deltaSeconds),
-        0,
+        minStartFromPrevious,
         maxStartTime,
       );
       const nextDuration = Math.max(

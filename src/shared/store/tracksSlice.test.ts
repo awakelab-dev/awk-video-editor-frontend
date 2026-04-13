@@ -95,7 +95,7 @@ describe('tracksSlice moveElement', () => {
 
     const trackA = useEditorStore.getState().tracks.find((track) => track.id === 'track-a')
     expect(trackA?.elements.map((element) => element.id)).toEqual(['el-2', 'el-1'])
-    expect(trackA?.elements.find((element) => element.id === 'el-1')?.startTime).toBe(12)
+    expect(trackA?.elements.find((element) => element.id === 'el-1')?.startTime).toBe(13)
   })
 
   it('mueve elementos entre pistas y los elimina de la pista origen', () => {
@@ -108,6 +108,56 @@ describe('tracksSlice moveElement', () => {
     expect(trackA?.elements.map((element) => element.id)).toEqual(['el-1'])
     expect(trackB?.elements.map((element) => element.id)).toEqual(['el-2'])
     expect(trackB?.elements[0]?.startTime).toBe(3)
+  })
+
+  it('si cae en la primera mitad de un clip, lo coloca delante sin solapar', () => {
+    useEditorStore.getState().moveElement('track-a', 'el-1', 'track-a', 6)
+
+    const trackA = useEditorStore.getState().tracks.find((track) => track.id === 'track-a')
+    const moved = trackA?.elements.find((element) => element.id === 'el-1')
+
+    expect(moved?.startTime).toBe(3)
+  })
+
+  it('si cae en la segunda mitad de un clip, lo coloca detrás sin solapar', () => {
+    useEditorStore.getState().moveElement('track-a', 'el-1', 'track-a', 9)
+
+    const trackA = useEditorStore.getState().tracks.find((track) => track.id === 'track-a')
+    const moved = trackA?.elements.find((element) => element.id === 'el-1')
+
+    expect(moved?.startTime).toBe(13)
+  })
+})
+
+describe('tracksSlice addElement', () => {
+  beforeEach(() => {
+    useEditorStore.setState({
+      tracks: buildTracks(),
+      selectedElementId: null,
+      selectionSource: null,
+    })
+  })
+
+  it('si se agrega en tiempo ocupado, lo coloca al final del bloque ocupado', () => {
+    const newElement = buildTextElement('el-new', 2, 5)
+
+    useEditorStore.getState().addElement('track-a', newElement)
+
+    const trackA = useEditorStore.getState().tracks.find((track) => track.id === 'track-a')
+    const inserted = trackA?.elements.find((element) => element.id === 'el-new')
+
+    expect(inserted?.startTime).toBe(13)
+  })
+
+  it('si se agrega en tiempo libre, respeta el startTime original', () => {
+    const newElement = buildTextElement('el-free', 20, 5)
+
+    useEditorStore.getState().addElement('track-a', newElement)
+
+    const trackA = useEditorStore.getState().tracks.find((track) => track.id === 'track-a')
+    const inserted = trackA?.elements.find((element) => element.id === 'el-free')
+
+    expect(inserted?.startTime).toBe(20)
   })
 })
 

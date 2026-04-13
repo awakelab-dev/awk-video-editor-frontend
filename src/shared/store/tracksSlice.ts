@@ -9,6 +9,102 @@ type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ?
 type EditorElementKey = KeysOfUnion<EditorElement>
 type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<EditorElement, K>
 
+function getElementEnd(element: Pick<EditorElement, 'startTime' | 'duration'>): number {
+  return element.startTime + element.duration
+}
+
+function overlaps(
+  intervalStart: number,
+  intervalDuration: number,
+  element: Pick<EditorElement, 'startTime' | 'duration'>,
+): boolean {
+  const intervalEnd = intervalStart + intervalDuration
+  return intervalStart < getElementEnd(element) && intervalEnd > element.startTime
+}
+
+function resolveNonOverlappingStartTime(
+  trackElements: EditorElement[],
+  movingElementId: string,
+  desiredStartTime: number,
+  movingDuration: number,
+): number {
+  const safeDesiredStart = Math.max(0, desiredStartTime)
+  const sortedElements = trackElements
+    .filter((element) => element.id !== movingElementId)
+    .sort((a, b) => a.startTime - b.startTime)
+
+  if (sortedElements.length === 0) {
+    return safeDesiredStart
+  }
+
+  const overlappedElements = sortedElements.filter((element) => overlaps(safeDesiredStart, movingDuration, element))
+  if (overlappedElements.length === 0) {
+    return safeDesiredStart
+  }
+
+  const desiredCenter = safeDesiredStart + movingDuration / 2
+  const anchorElement = overlappedElements.reduce((closest, current) => {
+    const closestDistance = Math.abs(closest.startTime + closest.duration / 2 - desiredCenter)
+    const currentDistance = Math.abs(current.startTime + current.duration / 2 - desiredCenter)
+    return currentDistance < closestDistance ? current : closest
+  })
+  const anchorIndex = sortedElements.findIndex((element) => element.id === anchorElement.id)
+
+  const placeAfter = () => {
+    let nextStartTime = getElementEnd(anchorElement)
+    for (let index = anchorIndex + 1; index < sortedElements.length; index += 1) {
+      const currentElement = sortedElements[index]
+      if (nextStartTime + movingDuration <= currentElement.startTime) {
+        return nextStartTime
+      }
+      nextStartTime = getElementEnd(currentElement)
+    }
+    return nextStartTime
+  }
+
+  const placeBefore = () => {
+    let nextSlotEnd = anchorElement.startTime
+    for (let index = anchorIndex - 1; index >= 0; index -= 1) {
+      const currentElement = sortedElements[index]
+      const candidateStart = nextSlotEnd - movingDuration
+      if (candidateStart >= getElementEnd(currentElement)) {
+        return candidateStart
+      }
+      nextSlotEnd = currentElement.startTime
+    }
+    const firstCandidate = nextSlotEnd - movingDuration
+    if (firstCandidate >= 0) {
+      return firstCandidate
+    }
+    return null
+  }
+
+  const anchorCenter = anchorElement.startTime + anchorElement.duration / 2
+  if (desiredCenter < anchorCenter) {
+    return placeBefore() ?? placeAfter()
+  }
+
+  return placeAfter()
+}
+
+function resolveStartTimeAfterConflicts(
+  trackElements: EditorElement[],
+  desiredStartTime: number,
+  movingDuration: number,
+): number {
+  let nextStartTime = Math.max(0, desiredStartTime)
+  const safeDuration = Math.max(0, movingDuration)
+
+  while (true) {
+    const overlappedElements = trackElements.filter((element) => overlaps(nextStartTime, safeDuration, element))
+    if (overlappedElements.length === 0) {
+      return nextStartTime
+    }
+
+    nextStartTime = Math.max(...overlappedElements.map(getElementEnd))
+  }
+}
+
 export type TracksSlice = {
   tracks: Track[]
   createTrack: (track: Track) => void
@@ -42,7 +138,17 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
         track.id === trackId
           ? {
               ...track,
-              elements: [...track.elements, element],
+              elements: [
+                ...track.elements,
+                {
+                  ...element,
+                  startTime: resolveStartTimeAfterConflicts(
+                    track.elements,
+                    element.startTime,
+                    element.duration,
+                  ),
+                },
+              ].sort((a, b) => a.startTime - b.startTime),
             }
           : track,
       ),
@@ -62,6 +168,12 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
       }
 
       const nextStartTime = Math.max(0, targetStartTime)
+      const resolvedStartTime = resolveNonOverlappingStartTime(
+        targetTrack.elements,
+        elementId,
+        nextStartTime,
+        element.duration,
+      )
 
       if (sourceTrackId === targetTrackId) {
         return {
@@ -74,7 +186,7 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
                       trackElement.id === elementId
                         ? {
                             ...trackElement,
-                            startTime: nextStartTime,
+                            startTime: resolvedStartTime,
                           }
                         : trackElement,
                     )
@@ -87,7 +199,7 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
 
       const movedElement = {
         ...element,
-        startTime: nextStartTime,
+        startTime: resolvedStartTime,
       }
 
       return {
