@@ -167,6 +167,7 @@ describe('PlaybackWorkspace', () => {
 
     const overlays = screen.getAllByTestId('playback-text-overlay')
     expect(overlays).toHaveLength(2)
+    expect(Number(overlays[0]?.style.zIndex ?? 0)).toBeGreaterThan(Number(overlays[1]?.style.zIndex ?? 0))
     expect(screen.getByText('Hola mundo')).toBeTruthy()
     expect(screen.getByText('Segundo texto')).toBeTruthy()
   })

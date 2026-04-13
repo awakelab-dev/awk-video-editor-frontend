@@ -310,7 +310,12 @@ export function PlaybackWorkspace() {
             {activeVisualElements.map((context) => {
               const isSelected = selectedElementId === context.element.id
               const isDragging = draggingElementId === context.element.id
-              const style = buildElementStyle(context.element, resolution, previewScale, context.trackIndex + 1)
+              const style = buildElementStyle(
+                context.element,
+                resolution,
+                previewScale,
+                tracks.length - context.trackIndex,
+              )
 
               if (context.element.type === 'text') {
                 return (
