@@ -72,7 +72,9 @@ function buildShapeElementStyle(
   return {
     ...buildBaseVisualStyle(element, resolution, zIndex),
     backgroundColor: element.fillColor,
-    border: `${Math.max(0, element.strokeWidth)}px solid ${element.strokeColor}`,
+    border: 'none',
+    outline: `${Math.max(0, element.strokeWidth)}px solid ${element.strokeColor}`,
+    outlineOffset: '0px',
     borderRadius: `${Math.max(0, element.cornerRadius)}px`,
   }
 }

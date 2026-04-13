@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { ReactNode } from 'react'
-import { ChevronDown, Minus, Plus, SlidersHorizontal, Square, Type } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
+import { ChevronDown, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
 import type { EditorElement } from '../../../shared/types/editor'
 
@@ -63,6 +63,16 @@ const inputClassName =
 const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`
 const stepperButtonClassName =
   'flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]'
+const textFontOptions = [
+  { label: 'Arial', value: 'Arial, sans-serif' },
+  { label: 'Verdana', value: 'Verdana, sans-serif' },
+  { label: 'Tahoma', value: 'Tahoma, sans-serif' },
+  { label: 'Trebuchet MS', value: "'Trebuchet MS', sans-serif" },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Times New Roman', value: "'Times New Roman', serif" },
+  { label: 'Courier New', value: "'Courier New', monospace" },
+  { label: 'Impact', value: 'Impact, sans-serif' },
+]
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -95,6 +105,64 @@ function findSelectedElementContext(
   }
 
   return null
+}
+
+function buildShapePreviewStyle(shape: Extract<EditorElement, { type: 'shape' }>): CSSProperties {
+  const sourceWidth = Math.max(1, shape.width)
+  const sourceHeight = Math.max(1, shape.height)
+  const maxPreviewSize = 74
+  const scale = Math.min(maxPreviewSize / sourceWidth, maxPreviewSize / sourceHeight)
+  const previewWidth = Math.max(14, Math.round(sourceWidth * scale))
+  const previewHeight = Math.max(14, Math.round(sourceHeight * scale))
+
+  const baseStyle: CSSProperties = {
+    width: `${previewWidth}px`,
+    height: `${previewHeight}px`,
+    backgroundColor: shape.fillColor,
+    outline: `${Math.max(0, shape.strokeWidth)}px solid ${shape.strokeColor}`,
+    outlineOffset: '0px',
+    transform: `rotate(${shape.rotation}deg)`,
+    transformOrigin: 'center center',
+    transition: 'transform 120ms ease-out',
+  }
+
+  if (shape.shapeType === 'ellipse') {
+    return {
+      ...baseStyle,
+      borderRadius: '9999px',
+    }
+  }
+
+  if (shape.shapeType === 'triangle') {
+    return {
+      ...baseStyle,
+      clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+    }
+  }
+
+  if (shape.shapeType === 'polygon') {
+    return {
+      ...baseStyle,
+      clipPath: 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)',
+    }
+  }
+
+  if (shape.shapeType === 'line') {
+    return {
+      width: `${previewWidth}px`,
+      height: `${Math.max(2, Math.round(Math.max(1, shape.strokeWidth)))}px`,
+      backgroundColor: shape.strokeColor,
+      borderRadius: '9999px',
+      transform: `rotate(${shape.rotation}deg)`,
+      transformOrigin: 'center center',
+      transition: 'transform 120ms ease-out',
+    }
+  }
+
+  return {
+    ...baseStyle,
+    borderRadius: `${Math.max(0, shape.cornerRadius)}px`,
+  }
 }
 
 function NumericField({
@@ -210,10 +278,24 @@ export function InspectorPanel() {
 
   const selectedElement = selectedElementContext?.element ?? null
   const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null
-  const selectedRectangleElement =
-    selectedElement?.type === 'shape' && selectedElement.shapeType === 'rectangle'
-      ? selectedElement
-      : null
+  const selectedShapeElement = selectedElement?.type === 'shape' ? selectedElement : null
+  const isSquareElement =
+    selectedShapeElement?.shapeType === 'rectangle'
+      ? Math.abs(selectedShapeElement.width - selectedShapeElement.height) < 0.001
+      : false
+  const shapePanelTitle = selectedShapeElement
+    ? selectedShapeElement.shapeType === 'rectangle'
+      ? isSquareElement
+        ? 'Cuadrado'
+        : 'Rectángulo'
+      : selectedShapeElement.shapeType === 'ellipse'
+        ? 'Círculo'
+        : selectedShapeElement.shapeType === 'line'
+          ? 'Línea'
+          : selectedShapeElement.shapeType === 'triangle'
+            ? 'Triángulo'
+            : 'Polígono'
+    : ''
 
   const selectedOpacityPercent = selectedElement ? opacityToPercent(selectedElement.opacity) : 100
 
@@ -259,11 +341,16 @@ export function InspectorPanel() {
                 onChange={(event) => updateSelectedProperty('fontFamily', event.target.value)}
                 value={selectedTextElement.fontFamily}
               >
-                <option value="Inter">Inter</option>
-                <option value="Roboto">Roboto</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Open Sans">Open Sans</option>
-                <option value="Poppins">Poppins</option>
+                {!textFontOptions.some(
+                  (fontOption) => fontOption.value === selectedTextElement.fontFamily,
+                ) && (
+                  <option value={selectedTextElement.fontFamily}>{selectedTextElement.fontFamily}</option>
+                )}
+                {textFontOptions.map((fontOption) => (
+                  <option key={fontOption.value} value={fontOption.value}>
+                    {fontOption.label}
+                  </option>
+                ))}
               </select>
             </PropertyRow>
 
@@ -312,6 +399,28 @@ export function InspectorPanel() {
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
             </PropertyRow>
 
+            <PropertyRow label="Rotación">
+              <input
+                aria-label="Rotación texto"
+                className="w-full"
+                max={180}
+                min={-180}
+                onChange={(event) => {
+                  const nextRotation = Number(event.target.value)
+                  if (!Number.isFinite(nextRotation)) {
+                    return
+                  }
+                  updateSelectedProperty('rotation', nextRotation)
+                }}
+                step={1}
+                type="range"
+                value={Math.round(selectedTextElement.rotation)}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {Math.round(selectedTextElement.rotation)}°
+              </span>
+            </PropertyRow>
+
             <PropertyRow label="Opacidad">
               <input
                 aria-label="Opacidad"
@@ -351,23 +460,26 @@ export function InspectorPanel() {
               />
             </div>
           </PropertySection>
-        ) : selectedRectangleElement ? (
-          <PropertySection icon={<Square className="h-[15px] w-[15px]" />} title="Rectángulo">
+        ) : selectedShapeElement ? (
+          <PropertySection
+            icon={<Square className="h-[15px] w-[15px]" />}
+            title={shapePanelTitle}
+          >
             <PropertyRow label="Tamaño">
               <NumericField
                 ariaLabel="Tamaño"
                 min={1}
                 onValueChange={(nextSize) => {
                   const safeSize = clamp(nextSize, 1, 9999)
-                  const currentWidth = Math.max(1, selectedRectangleElement.width)
-                  const aspectRatio = selectedRectangleElement.height / currentWidth
+                  const currentWidth = Math.max(1, selectedShapeElement.width)
+                  const aspectRatio = selectedShapeElement.height / currentWidth
                   const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
 
                   updateSelectedProperty('width', safeSize)
                   updateSelectedProperty('height', nextHeight)
                 }}
                 step={1}
-                value={Math.round(selectedRectangleElement.width)}
+                value={Math.round(selectedShapeElement.width)}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
             </PropertyRow>
@@ -376,7 +488,7 @@ export function InspectorPanel() {
               <NumericField
                 ariaLabel="Posicion X"
                 onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
-                value={selectedRectangleElement.x}
+                value={selectedShapeElement.x}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
             </PropertyRow>
@@ -385,7 +497,7 @@ export function InspectorPanel() {
               <NumericField
                 ariaLabel="Posicion Y"
                 onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
-                value={selectedRectangleElement.y}
+                value={selectedShapeElement.y}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
             </PropertyRow>
@@ -396,9 +508,11 @@ export function InspectorPanel() {
                   <NumericField
                     ariaLabel="Grosor borde"
                     min={0}
-                    onValueChange={(nextValue) => updateSelectedProperty('strokeWidth', nextValue)}
+                    onValueChange={(nextValue) =>
+                      updateSelectedProperty('strokeWidth', Math.max(0, nextValue))
+                    }
                     step={1}
-                    value={selectedRectangleElement.strokeWidth}
+                    value={selectedShapeElement.strokeWidth}
                     widthClassName="w-[62px]"
                   />
                   <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -409,13 +523,13 @@ export function InspectorPanel() {
                     className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
                     onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
                     type="color"
-                    value={selectedRectangleElement.strokeColor}
+                    value={selectedShapeElement.strokeColor}
                   />
                   <input
                     aria-label="Codigo color borde"
                     className={`${inputClassName} w-[90px] text-right tabular-nums`}
                     onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
-                    value={selectedRectangleElement.strokeColor}
+                    value={selectedShapeElement.strokeColor}
                   />
                 </div>
               </div>
@@ -427,13 +541,13 @@ export function InspectorPanel() {
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
                 onChange={(event) => updateSelectedProperty('fillColor', event.target.value)}
                 type="color"
-                value={selectedRectangleElement.fillColor}
+                value={selectedShapeElement.fillColor}
               />
               <input
                 aria-label="Codigo relleno"
                 className={`${inputClassName} w-[90px] text-right tabular-nums`}
                 onChange={(event) => updateSelectedProperty('fillColor', event.target.value)}
-                value={selectedRectangleElement.fillColor}
+                value={selectedShapeElement.fillColor}
               />
             </PropertyRow>
 
@@ -459,10 +573,47 @@ export function InspectorPanel() {
                 {selectedOpacityPercent}%
               </span>
             </PropertyRow>
+
+            <div className="mt-2 rounded-[6px] border border-[#2a2a34] bg-[#202028] p-2.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-[#9ca3af]">Vista de la forma</span>
+                <div className="flex items-center gap-1.5 text-[11px] text-[#9ca3af]">
+                  <RotateCw className="h-[13px] w-[13px]" />
+                  <span>{Math.round(selectedShapeElement.rotation)}°</span>
+                </div>
+              </div>
+
+              <div className="mb-2.5 flex h-[110px] items-center justify-center rounded-[6px] border border-[#2a2a34] bg-[#16161c]">
+                <div
+                  data-testid="inspector-shape-preview"
+                  style={buildShapePreviewStyle(selectedShapeElement)}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <RotateCw className="h-[14px] w-[14px] text-[#7f8695]" />
+                <input
+                  aria-label="Rotación forma"
+                  className="w-full"
+                  max={180}
+                  min={-180}
+                  onChange={(event) => {
+                    const nextRotation = Number(event.target.value)
+                    if (!Number.isFinite(nextRotation)) {
+                      return
+                    }
+                    updateSelectedProperty('rotation', nextRotation)
+                  }}
+                  step={1}
+                  type="range"
+                  value={Math.round(selectedShapeElement.rotation)}
+                />
+              </div>
+            </div>
           </PropertySection>
         ) : (
           <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-xs text-[#6b7280]">
-            Selecciona un texto o un rectángulo para editar sus propiedades.
+            Selecciona un texto o una forma para editar sus propiedades.
           </div>
         )}
       </div>

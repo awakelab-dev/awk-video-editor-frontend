@@ -31,6 +31,7 @@ function CanvasTextPreview() {
         opacity: normalizeOpacity(selectedText.opacity),
         position: 'absolute',
         top: `${selectedText.y}px`,
+        transform: `rotate(${selectedText.rotation}deg)`,
       }}
     >
       {selectedText.text}
@@ -118,6 +119,27 @@ function buildSquareElement(): ShapeElement {
   }
 }
 
+function buildEllipseElement(): ShapeElement {
+  return {
+    cornerRadius: 0,
+    duration: 8,
+    fillColor: '#3366ff',
+    height: 110,
+    id: 'shape-ellipse-1',
+    name: 'Elipse principal',
+    opacity: 1,
+    rotation: 0,
+    shapeType: 'ellipse',
+    startTime: 0,
+    strokeColor: '#222222',
+    strokeWidth: 3,
+    type: 'shape',
+    width: 170,
+    x: 260,
+    y: 150,
+  }
+}
+
 describe('InspectorPanel', () => {
   afterEach(() => {
     cleanup()
@@ -162,6 +184,10 @@ describe('InspectorPanel', () => {
 
     expect(screen.getByTestId('canvas-text').style.fontSize).toBe('16px')
 
+    fireEvent.change(screen.getByLabelText('Rotación texto'), { target: { value: '30' } })
+
+    expect(screen.getByTestId('canvas-text').style.transform).toBe('rotate(30deg)')
+
     fireEvent.change(screen.getByLabelText('Texto'), { target: { value: 'Nuevo copy' } })
 
     expect(screen.getByTestId('canvas-text').textContent).toBe('Nuevo copy')
@@ -192,12 +218,45 @@ describe('InspectorPanel', () => {
     fireEvent.change(screen.getByLabelText('Tamaño'), { target: { value: '180' } })
     fireEvent.change(screen.getByLabelText('Codigo relleno'), { target: { value: '#00ff00' } })
     fireEvent.change(screen.getByLabelText('Grosor borde'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Rotación forma'), { target: { value: '45' } })
 
     const canvasSquare = screen.getByTestId('canvas-square')
     expect(canvasSquare.style.width).toBe('180px')
     expect(canvasSquare.style.height).toBe('135px')
+    expect(canvasSquare.style.left).toBe('240px')
+    expect(canvasSquare.style.top).toBe('140px')
     expect(canvasSquare.style.backgroundColor).toBe('rgb(0, 255, 0)')
     expect(canvasSquare.style.border).toBe('4px solid rgb(17, 17, 17)')
+    const inspectorPreview = screen.getByTestId('inspector-shape-preview')
+    expect(inspectorPreview.style.transform).toBe('rotate(45deg)')
+  })
+
+  it('muestra y edita propiedades para otras formas (elipse)', () => {
+    const ellipseElement = buildEllipseElement()
+
+    useEditorStore.setState({
+      selectedElementId: ellipseElement.id,
+      selectionSource: 'canvas',
+      tracks: [
+        {
+          elements: [ellipseElement],
+          id: 'track-1',
+          name: 'Formas',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    expect(screen.getByText('Círculo')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Codigo relleno'), { target: { value: '#ff00aa' } })
+
+    const updatedShape = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedShape?.type).toBe('shape')
+    if (updatedShape?.type === 'shape') {
+      expect(updatedShape.fillColor).toBe('#ff00aa')
+    }
   })
 
   it('muestra estado vacio cuando no hay seleccion', () => {
