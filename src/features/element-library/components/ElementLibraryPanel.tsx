@@ -239,13 +239,18 @@ export function ElementLibraryPanel() {
                         document.body.appendChild(overlay)
                         dragOverlayElRef.current = overlay
 
+                        let lastPointerX = event.clientX
+                        let lastPointerY = event.clientY
+
                         const onMouseMove = (e: MouseEvent) => {
                           if (!dragOverlayElRef.current) return
+                          lastPointerX = e.clientX
+                          lastPointerY = e.clientY
                           dragOverlayElRef.current.style.left = `${e.clientX}px`
                           dragOverlayElRef.current.style.top = `${e.clientY}px`
                         }
 
-                        const cleanup = () => {
+                        const cleanup = (mouseUpEvent?: MouseEvent) => {
                           console.log('[ElementLibrary][drag] cleanup')
                           window.removeEventListener('mousemove', onMouseMove)
                           window.removeEventListener('mouseup', cleanup)
@@ -257,8 +262,8 @@ export function ElementLibraryPanel() {
                           activeDragPayloadRef.current = null
                           if (!activePayload) return
 
-                          const clientX = (window.event as MouseEvent | undefined)?.clientX ?? e.clientX
-                          const clientY = (window.event as MouseEvent | undefined)?.clientY ?? e.clientY
+                          const clientX = mouseUpEvent?.clientX ?? lastPointerX
+                          const clientY = mouseUpEvent?.clientY ?? lastPointerY
 
                           // Only allow drop inside preview area.
                           const preview = document.querySelector('[data-testid="playback-preview"]') as HTMLElement | null

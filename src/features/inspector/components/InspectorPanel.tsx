@@ -4,6 +4,11 @@ import { ChevronDown, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type } f
 import { useEditorStore } from '../../../shared/store'
 import type { EditorElement } from '../../../shared/types/editor'
 
+type KeysOfUnion<T> = T extends T ? keyof T : never
+type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
+type EditorElementKey = KeysOfUnion<EditorElement>
+type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<EditorElement, K>
+
 type SectionProps = {
   title: string
   icon: ReactNode
@@ -299,10 +304,7 @@ export function InspectorPanel() {
 
   const selectedOpacityPercent = selectedElement ? opacityToPercent(selectedElement.opacity) : 100
 
-  const updateSelectedProperty = (
-    property: keyof EditorElement,
-    value: EditorElement[keyof EditorElement],
-  ) => {
+  const updateSelectedProperty = <K extends EditorElementKey>(property: K, value: EditorElementValue<K>) => {
     if (!selectedElementContext) {
       return
     }
