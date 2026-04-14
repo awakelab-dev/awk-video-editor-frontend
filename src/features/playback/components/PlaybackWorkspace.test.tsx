@@ -233,7 +233,7 @@ describe('PlaybackWorkspace', () => {
       play = vi.fn().mockResolvedValue(undefined)
       pause = vi.fn()
 
-      constructor(_source?: string) {
+      constructor() {
         audioInstances.push(this)
       }
     }
@@ -264,4 +264,61 @@ describe('PlaybackWorkspace', () => {
     expect(useEditorStore.getState().masterVolume).toBeCloseTo(0.2, 3)
     expect(audioInstances[0]?.volume).toBeCloseTo(0.1, 3)
   })
+
+  it('aplica fade in y fade out al volumen del audio', () => {
+    const audioInstances: Array<{
+      volume: number
+      muted: boolean
+      playbackRate: number
+      currentTime: number
+      preload: string
+      play: ReturnType<typeof vi.fn>
+      pause: ReturnType<typeof vi.fn>
+    }> = []
+
+    class AudioMock {
+      volume = 1
+      muted = false
+      playbackRate = 1
+      currentTime = 0
+      preload = 'auto'
+      play = vi.fn().mockResolvedValue(undefined)
+      pause = vi.fn()
+
+      constructor() {
+        audioInstances.push(this)
+      }
+    }
+
+    vi.stubGlobal('Audio', AudioMock as unknown as typeof Audio)
+
+    const audioElement = buildAudioElement()
+    audioElement.volume = 1
+    audioElement.fadeIn = 2
+    audioElement.fadeOut = 3
+    audioElement.duration = 10
+
+    useEditorStore.setState({
+      currentTime: 1,
+      isPlaying: false,
+      masterVolume: 1,
+      tracks: [
+        {
+          id: 'track-audio',
+          name: 'Audio',
+          elements: [audioElement],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    expect(audioInstances).toHaveLength(1)
+    expect(audioInstances[0]?.volume).toBeCloseTo(0.5, 3)
+
+    useEditorStore.setState({ currentTime: 8.5 })
+
+    expect(audioInstances[0]?.volume).toBeCloseTo(0.5, 3)
+  })
 })
+

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { InspectorPanel } from './InspectorPanel'
 import { useEditorStore } from '../../../shared/store'
-import type { ShapeElement, TextElement } from '../../../shared/types/editor'
+import type { AudioElement, ShapeElement, TextElement } from '../../../shared/types/editor'
 
 function normalizeOpacity(opacity: number) {
   return opacity <= 1 ? opacity : opacity / 100
@@ -140,6 +140,23 @@ function buildEllipseElement(): ShapeElement {
   }
 }
 
+function buildAudioElement(): AudioElement {
+  return {
+    duration: 12,
+    fadeIn: 0,
+    fadeOut: 0,
+    id: 'audio-1',
+    muted: false,
+    name: 'Audio principal',
+    opacity: 1,
+    playbackRate: 1,
+    source: '/audio.mp3',
+    startTime: 0,
+    type: 'audio',
+    volume: 0.5,
+  }
+}
+
 describe('InspectorPanel', () => {
   afterEach(() => {
     cleanup()
@@ -256,6 +273,38 @@ describe('InspectorPanel', () => {
     expect(updatedShape?.type).toBe('shape')
     if (updatedShape?.type === 'shape') {
       expect(updatedShape.fillColor).toBe('#ff00aa')
+    }
+  })
+
+  it('muestra y actualiza propiedades de audio', () => {
+    const audioElement = buildAudioElement()
+
+    useEditorStore.setState({
+      selectedElementId: audioElement.id,
+      selectionSource: 'timeline',
+      tracks: [
+        {
+          elements: [audioElement],
+          id: 'track-audio',
+          name: 'Audio',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    expect(screen.getByText('Audio')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Volumen audio'), { target: { value: '80' } })
+    fireEvent.change(screen.getByLabelText('Fade In'), { target: { value: '1.5' } })
+    fireEvent.change(screen.getByLabelText('Fade Out'), { target: { value: '2.5' } })
+
+    const updatedAudio = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedAudio?.type).toBe('audio')
+    if (updatedAudio?.type === 'audio') {
+      expect(updatedAudio.volume).toBeCloseTo(0.8, 3)
+      expect(updatedAudio.fadeIn).toBeCloseTo(1.5, 3)
+      expect(updatedAudio.fadeOut).toBeCloseTo(2.5, 3)
     }
   })
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { ChevronDown, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type } from 'lucide-react'
+import { ChevronDown, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Volume2 } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
 import type { EditorElement } from '../../../shared/types/editor'
 
@@ -88,6 +88,11 @@ function opacityToPercent(opacity: number) {
   return safeOpacity <= 1
     ? Math.round(clamp(safeOpacity, 0, 1) * 100)
     : Math.round(clamp(safeOpacity, 0, 100))
+}
+
+function volumeToPercent(volume: number) {
+  const safeVolume = Number.isFinite(volume) ? volume : 1
+  return Math.round(clamp(safeVolume, 0, 1) * 100)
 }
 
 function findSelectedElementContext(
@@ -283,6 +288,7 @@ export function InspectorPanel() {
 
   const selectedElement = selectedElementContext?.element ?? null
   const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null
+  const selectedAudioElement = selectedElement?.type === 'audio' ? selectedElement : null
   const selectedShapeElement = selectedElement?.type === 'shape' ? selectedElement : null
   const isSquareElement =
     selectedShapeElement?.shapeType === 'rectangle'
@@ -461,6 +467,73 @@ export function InspectorPanel() {
                 value={selectedTextElement.text}
               />
             </div>
+          </PropertySection>
+        ) : selectedAudioElement ? (
+          <PropertySection icon={<Volume2 className="h-[15px] w-[15px]" />} title="Audio">
+            <PropertyRow label="Volumen">
+              <input
+                aria-label="Volumen audio"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value)
+                  if (!Number.isFinite(nextPercent)) {
+                    return
+                  }
+                  updateSelectedProperty('volume', clamp(nextPercent, 0, 100) / 100)
+                }}
+                step={1}
+                type="range"
+                value={volumeToPercent(selectedAudioElement.volume)}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {volumeToPercent(selectedAudioElement.volume)}%
+              </span>
+            </PropertyRow>
+
+            <PropertyRow label="Silencio">
+              <button
+                aria-label="Silencio audio"
+                className={`${inputClassName} inline-flex w-[92px] items-center justify-center px-0 text-[11px] font-medium ${
+                  selectedAudioElement.muted
+                    ? 'border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]'
+                    : 'text-[#9ca3af]'
+                }`}
+                onClick={() => updateSelectedProperty('muted', !selectedAudioElement.muted)}
+                type="button"
+              >
+                {selectedAudioElement.muted ? 'Activado' : 'Desactivado'}
+              </button>
+            </PropertyRow>
+
+            <PropertyRow label="Fade In">
+              <NumericField
+                ariaLabel="Fade In"
+                max={Math.max(0, selectedAudioElement.duration)}
+                min={0}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty('fadeIn', clamp(nextValue, 0, Math.max(0, selectedAudioElement.duration)))
+                }
+                step={0.1}
+                value={Number(selectedAudioElement.fadeIn.toFixed(2))}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">s</span>
+            </PropertyRow>
+
+            <PropertyRow label="Fade Out">
+              <NumericField
+                ariaLabel="Fade Out"
+                max={Math.max(0, selectedAudioElement.duration)}
+                min={0}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty('fadeOut', clamp(nextValue, 0, Math.max(0, selectedAudioElement.duration)))
+                }
+                step={0.1}
+                value={Number(selectedAudioElement.fadeOut.toFixed(2))}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">s</span>
+            </PropertyRow>
           </PropertySection>
         ) : selectedShapeElement ? (
           <PropertySection

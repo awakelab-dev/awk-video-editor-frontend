@@ -109,6 +109,21 @@ function buildElementStyle(
   return buildMediaElementStyle(element, resolution, zIndex)
 }
 
+function getAudioFadeGain(element: AudioElement, currentTime: number): number {
+  const clipDuration = Math.max(0, element.duration)
+  const playheadInClip = clamp(currentTime - element.startTime, 0, clipDuration)
+  const safeFadeIn = clamp(element.fadeIn, 0, clipDuration)
+  const safeFadeOut = clamp(element.fadeOut, 0, clipDuration)
+
+  const fadeInGain =
+    safeFadeIn > 0 ? clamp(playheadInClip / safeFadeIn, 0, 1) : 1
+  const remainingTime = Math.max(0, clipDuration - playheadInClip)
+  const fadeOutGain =
+    safeFadeOut > 0 ? clamp(remainingTime / safeFadeOut, 0, 1) : 1
+
+  return clamp(Math.min(fadeInGain, fadeOutGain), 0, 1)
+}
+
 export function PlaybackWorkspace() {
   usePlaybackEngine()
 
@@ -219,7 +234,8 @@ export function PlaybackWorkspace() {
 
       audio.playbackRate = element.playbackRate
       audio.muted = element.muted || masterVolume <= 0
-      audio.volume = clamp(element.volume * masterVolume, 0, 1)
+      const fadeGain = getAudioFadeGain(element, currentTime)
+      audio.volume = clamp(element.volume * masterVolume * fadeGain, 0, 1)
 
       const targetTime = Math.max(0, currentTime - element.startTime)
       if (Number.isFinite(targetTime) && Math.abs(audio.currentTime - targetTime) > 0.15) {
