@@ -7,6 +7,7 @@ import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
 import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import { useAddAudioElement } from '../hooks/useAddAudioElement'
+import { getCreateTextErrorMessage } from '../../../shared/api/textElementsApi'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 
 type DragPayload =
@@ -65,18 +66,24 @@ export function ElementLibraryPanel() {
   const dragOverlayCleanupRef = useRef<(() => void) | null>(null)
   const activeDragPayloadRef = useRef<DragPayload | null>(null)
 
-  function handleAddTextPreset(item: ElementLibraryItem) {
+  async function handleAddTextPreset(item: ElementLibraryItem) {
     if (!item.textPreset) return
     trackEvent('text_preset_added', { source: 'element-library', preset: item.textPreset, itemId: item.id })
-    const element = addTextElement({ preset: item.textPreset, label: item.name })
-    console.log('[ElementLibrary] text preset workflow', {
-      preset: item.textPreset,
-      templateId: item.id,
-      element,
-    })
-    setLastPresetId(item.id)
-    setFeedback(`${item.name} añadido al lienzo`)
-    window.setTimeout(() => setFeedback(null), 2000)
+    try {
+      const element = await addTextElement({ preset: item.textPreset, label: item.name })
+      console.log('[ElementLibrary] text preset workflow', {
+        preset: item.textPreset,
+        templateId: item.id,
+        element,
+      })
+      setLastPresetId(item.id)
+      setFeedback(`${item.name} añadido al lienzo`)
+      window.setTimeout(() => setFeedback(null), 2000)
+    } catch (error) {
+      console.error('[ElementLibrary] text preset failed', error)
+      setFeedback(`No se pudo añadir el texto: ${getCreateTextErrorMessage(error)}`)
+      window.setTimeout(() => setFeedback(null), 3500)
+    }
   }
 
   function handleAddShapePreset(item: ElementLibraryItem) {
@@ -179,7 +186,7 @@ export function ElementLibraryPanel() {
                     onClick={() => {
                       console.log('[ElementLibrary] add element ->', item)
                       if (item.category === 'text' && item.textPreset) {
-                        handleAddTextPreset(item)
+                        void handleAddTextPreset(item)
                       } else if (item.category === 'shapes' && item.shapePreset) {
                         handleAddShapePreset(item)
                       } else if (item.type === 'audio') {
@@ -296,7 +303,15 @@ export function ElementLibraryPanel() {
                             }
 
                             if (activePayload.kind === 'text') {
-                              addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                              void addTextElement({
+                                preset: activePayload.preset,
+                                label: activePayload.label,
+                                dropPosition,
+                              }).catch((error) => {
+                                console.error('[ElementLibrary][drag] text create failed', error)
+                                setFeedback(`No se pudo añadir el texto: ${getCreateTextErrorMessage(error)}`)
+                                window.setTimeout(() => setFeedback(null), 3500)
+                              })
                             } else {
                               addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
                             }

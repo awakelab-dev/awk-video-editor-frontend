@@ -2,6 +2,11 @@ import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import { TEXT_TRACK_ID, TEXT_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { TextElement, Track } from '../../../shared/types/editor'
+import {
+  createTextElement,
+  isTextElementsApiEnabled,
+  type CreateTextElementRequest,
+} from '../../../shared/api/textElementsApi'
 import type { TextPreset } from '../types'
 
 const TEXT_PRESET_CONFIG: Record<
@@ -121,15 +126,41 @@ function createTextTrack(): Track {
   }
 }
 
+function toCreateTextRequestPayload(element: TextElement, trackId: string): CreateTextElementRequest {
+  return {
+    id: element.id,
+    type: 'text',
+    name: element.name,
+    startTime: element.startTime,
+    duration: element.duration,
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+    rotation: element.rotation,
+    text: element.text,
+    fontFamily: element.fontFamily,
+    fontSize: element.fontSize,
+    fontWeight: element.fontWeight,
+    textColor: element.textColor,
+    backgroundColor: element.backgroundColor,
+    lineHeight: element.lineHeight,
+    letterSpacing: element.letterSpacing,
+    textAlign: element.textAlign,
+    trackId,
+  }
+}
+
 export function useAddTextElement() {
   const tracks = useEditorStore((state) => state.tracks)
+  const projectId = useEditorStore((state) => state.projectId)
   const createTrack = useEditorStore((state) => state.createTrack)
   const addElement = useEditorStore((state) => state.addElement)
   const selectElement = useEditorStore((state) => state.selectElement)
   const currentTime = useEditorStore((state) => state.currentTime)
 
   const addText = useCallback(
-    (options: AddTextOptions = {}) => {
+    async (options: AddTextOptions = {}) => {
       let textTrack = tracks.find((track) => track.id === TEXT_TRACK_ID)
       if (!textTrack) {
         textTrack = createTextTrack()
@@ -137,11 +168,14 @@ export function useAddTextElement() {
       }
       const sequence = textTrack.elements.filter((element) => element.type === 'text').length
       const element = buildTextElement(sequence, options, currentTime)
+      if (isTextElementsApiEnabled()) {
+        await createTextElement(projectId, toCreateTextRequestPayload(element, textTrack.id))
+      }
       addElement(textTrack.id, element)
       selectElement(element.id, 'element-library')
       return element
     },
-    [tracks, createTrack, addElement, selectElement, currentTime],
+    [tracks, projectId, createTrack, addElement, selectElement, currentTime],
   )
 
   return addText
