@@ -504,37 +504,34 @@ export function InspectorPanel() {
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
             </PropertyRow>
 
-            <PropertyRow label="Borde">
-              <div className="w-full space-y-1.5">
-                <div className="flex items-center justify-end gap-1.5">
-                  <NumericField
-                    ariaLabel="Grosor borde"
-                    min={0}
-                    onValueChange={(nextValue) =>
-                      updateSelectedProperty('strokeWidth', Math.max(0, nextValue))
-                    }
-                    step={1}
-                    value={selectedShapeElement.strokeWidth}
-                    widthClassName="w-[62px]"
-                  />
-                  <span className="w-4 text-[10px] text-[#6b7280]">px</span>
-                </div>
-                <div className="flex items-center justify-end gap-1.5">
-                  <input
-                    aria-label="Color borde"
-                    className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
-                    onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
-                    type="color"
-                    value={selectedShapeElement.strokeColor}
-                  />
-                  <input
-                    aria-label="Codigo color borde"
-                    className={`${inputClassName} w-[90px] text-right tabular-nums`}
-                    onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
-                    value={selectedShapeElement.strokeColor}
-                  />
-                </div>
-              </div>
+            <PropertyRow label="Borde: Grosor">
+              <NumericField
+                ariaLabel="Grosor borde"
+                min={0}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty('strokeWidth', Math.max(0, nextValue))
+                }
+                step={1}
+                value={selectedShapeElement.strokeWidth}
+                widthClassName="w-[62px]"
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Borde: Color">
+              <input
+                aria-label="Color borde"
+                className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
+                onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
+                type="color"
+                value={selectedShapeElement.strokeColor}
+              />
+              <input
+                aria-label="Codigo color borde"
+                className={`${inputClassName} w-[90px] text-right tabular-nums`}
+                onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
+                value={selectedShapeElement.strokeColor}
+              />
             </PropertyRow>
 
             <PropertyRow label="Relleno">
