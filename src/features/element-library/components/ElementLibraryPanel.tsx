@@ -7,11 +7,14 @@ import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
 import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import { useAddAudioElement } from '../hooks/useAddAudioElement'
+import { useAddVideoElement } from '../hooks/useAddVideoElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 
 type DragPayload =
   | { kind: 'text'; preset: NonNullable<ElementLibraryItem['textPreset']>; label: string }
   | { kind: 'shape'; preset: NonNullable<ElementLibraryItem['shapePreset']>; label: string }
+  | { kind: 'audio'; assetId: string; label: string }
+  | { kind: 'video'; assetId: string; label: string }
 
 type DragEndDetail = {
   payload: DragPayload
@@ -55,6 +58,7 @@ export function ElementLibraryPanel() {
   const addTextElement = useAddTextElement()
   const addShapeElement = useAddShapeElement()
   const addAudioElement = useAddAudioElement()
+  const addVideoElement = useAddVideoElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
@@ -162,18 +166,24 @@ export function ElementLibraryPanel() {
                 const isPreset =
                   (item.category === 'text' && item.textPreset) || (item.category === 'shapes' && item.shapePreset)
                 const isRecentPreset = isPreset && item.id === lastPresetId
+                const isImportedAudio = item.type === 'audio' && item.category === 'audio'
+                const isImportedVideo = item.type === 'video' && item.category === 'media'
                 const payload: DragPayload | null =
                   item.category === 'text' && item.textPreset
                     ? { kind: 'text', preset: item.textPreset, label: item.name }
                     : item.category === 'shapes' && item.shapePreset
                       ? { kind: 'shape', preset: item.shapePreset, label: item.name }
-                      : null
+                      : isImportedAudio
+                        ? { kind: 'audio', assetId: item.id, label: item.name }
+                        : isImportedVideo
+                          ? { kind: 'video', assetId: item.id, label: item.name }
+                          : null
 
                 return (
                   <article
                     className={`group rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
                       isRecentPreset ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
-                    } ${isPreset ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
+                    } ${isPreset || isImportedAudio || isImportedVideo ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
                     key={item.id}
                     aria-current={isRecentPreset}
                     onClick={() => {
@@ -295,11 +305,15 @@ export function ElementLibraryPanel() {
                               y: Math.round(relY * resolution.h),
                             }
 
-                            if (activePayload.kind === 'text') {
-                              addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
-                            } else {
-                              addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
-                            }
+                          if (activePayload.kind === 'text') {
+                            addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                          } else if (activePayload.kind === 'shape') {
+                            addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                          } else if (activePayload.kind === 'audio') {
+                            addAudioElement({ assetId: activePayload.assetId, label: activePayload.label })
+                          } else if (activePayload.kind === 'video') {
+                            addVideoElement({ assetId: activePayload.assetId, label: activePayload.label })
+                          }
                           }
 
                           // Still emit event so other parts can react if needed.
@@ -394,6 +408,23 @@ export function ElementLibraryPanel() {
                     mimeType,
                   }
                   importAsset(asset)
+
+                  // Auto-add audio and video to timeline immediately after import
+                  if (type === 'audio') {
+                    setTimeout(() => {
+                      const created = addAudioElement({ assetId: id, label: file.name })
+                      if (created) {
+                        setFeedback(`${file.name} añadido a pista de audio`)
+                      }
+                    }, 0)
+                  } else if (type === 'video') {
+                    setTimeout(() => {
+                      const created = addVideoElement({ assetId: id, label: file.name })
+                      if (created) {
+                        setFeedback(`${file.name} añadido a pista de vídeo`)
+                      }
+                    }, 0)
+                  }
                 })
 
                 if (mappedItems.length) {
