@@ -7,6 +7,7 @@ import { useInstrumentation } from '../hooks/useInstrumentation'
 import { useAddTextElement } from '../hooks/useAddTextElement'
 import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import { useAddAudioElement } from '../hooks/useAddAudioElement'
+import { useAddImageElement } from '../hooks/useAddImageElement'
 import { useAddVideoElement } from '../hooks/useAddVideoElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 
@@ -14,6 +15,7 @@ type DragPayload =
   | { kind: 'text'; preset: NonNullable<ElementLibraryItem['textPreset']>; label: string }
   | { kind: 'shape'; preset: NonNullable<ElementLibraryItem['shapePreset']>; label: string }
   | { kind: 'audio'; assetId: string; label: string }
+  | { kind: 'image'; assetId: string; label: string }
   | { kind: 'video'; assetId: string; label: string }
 
 type DragEndDetail = {
@@ -58,6 +60,7 @@ export function ElementLibraryPanel() {
   const addTextElement = useAddTextElement()
   const addShapeElement = useAddShapeElement()
   const addAudioElement = useAddAudioElement()
+  const addImageElement = useAddImageElement()
   const addVideoElement = useAddVideoElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -167,6 +170,7 @@ export function ElementLibraryPanel() {
                   (item.category === 'text' && item.textPreset) || (item.category === 'shapes' && item.shapePreset)
                 const isRecentPreset = isPreset && item.id === lastPresetId
                 const isImportedAudio = item.type === 'audio' && item.category === 'audio'
+                const isImportedImage = item.type === 'image' && item.category === 'media'
                 const isImportedVideo = item.type === 'video' && item.category === 'media'
                 const payload: DragPayload | null =
                   item.category === 'text' && item.textPreset
@@ -175,6 +179,8 @@ export function ElementLibraryPanel() {
                       ? { kind: 'shape', preset: item.shapePreset, label: item.name }
                       : isImportedAudio
                         ? { kind: 'audio', assetId: item.id, label: item.name }
+                        : isImportedImage
+                          ? { kind: 'image', assetId: item.id, label: item.name }
                         : isImportedVideo
                           ? { kind: 'video', assetId: item.id, label: item.name }
                           : null
@@ -183,7 +189,7 @@ export function ElementLibraryPanel() {
                   <article
                     className={`group rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
                       isRecentPreset ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
-                    } ${isPreset || isImportedAudio || isImportedVideo ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
+                    } ${isPreset || isImportedAudio || isImportedImage || isImportedVideo ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
                     key={item.id}
                     aria-current={isRecentPreset}
                     onClick={() => {
@@ -193,11 +199,21 @@ export function ElementLibraryPanel() {
                       } else if (item.category === 'shapes' && item.shapePreset) {
                         handleAddShapePreset(item)
                       } else if (item.type === 'audio') {
-                        // If the item comes from an imported asset (same id), create an audio element on the timeline.
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         const created = addAudioElement({ assetId: item.id, label: item.name })
                         if (!created) {
-                          // fallback: still emit the generic event for other listeners
+                          addElement(item)
+                        }
+                      } else if (item.type === 'image') {
+                        trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
+                        const created = addImageElement({ assetId: item.id, label: item.name })
+                        if (!created) {
+                          addElement(item)
+                        }
+                      } else if (item.type === 'video') {
+                        trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
+                        const created = addVideoElement({ assetId: item.id, label: item.name })
+                        if (!created) {
                           addElement(item)
                         }
                       } else {
@@ -311,8 +327,18 @@ export function ElementLibraryPanel() {
                             addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
                           } else if (activePayload.kind === 'audio') {
                             addAudioElement({ assetId: activePayload.assetId, label: activePayload.label })
+                          } else if (activePayload.kind === 'image') {
+                            addImageElement({
+                              assetId: activePayload.assetId,
+                              label: activePayload.label,
+                              dropPosition,
+                            })
                           } else if (activePayload.kind === 'video') {
-                            addVideoElement({ assetId: activePayload.assetId, label: activePayload.label })
+                            addVideoElement({
+                              assetId: activePayload.assetId,
+                              label: activePayload.label,
+                              dropPosition,
+                            })
                           }
                           }
 
@@ -417,11 +443,18 @@ export function ElementLibraryPanel() {
                         setFeedback(`${file.name} añadido a pista de audio`)
                       }
                     }, 0)
+                  } else if (type === 'image') {
+                    setTimeout(() => {
+                      const created = addImageElement({ assetId: id, label: file.name })
+                      if (created) {
+                        setFeedback(`${file.name} añadida al timeline`)
+                      }
+                    }, 0)
                   } else if (type === 'video') {
                     setTimeout(() => {
                       const created = addVideoElement({ assetId: id, label: file.name })
                       if (created) {
-                        setFeedback(`${file.name} añadido a pista de vídeo`)
+                        setFeedback(`${file.name} añadido al timeline`)
                       }
                     }, 0)
                   }

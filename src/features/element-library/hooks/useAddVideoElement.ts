@@ -1,22 +1,20 @@
 import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
+import { MEDIA_TRACK_ID, MEDIA_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { VideoElement, Track } from '../../../shared/types/editor'
-
-const VIDEO_TRACK_ID = 'track-video'
-const VIDEO_TRACK_NAME = 'Vídeo'
 
 type AddVideoOptions = {
   assetId: string
   label?: string
   duration?: number
-  width?: number
-  height?: number
+  dropPosition?: { x: number; y: number }
+  startTime?: number
 }
 
-function createVideoTrack(): Track {
+function createMediaTrack(): Track {
   return {
-    id: VIDEO_TRACK_ID,
-    name: VIDEO_TRACK_NAME,
+    id: MEDIA_TRACK_ID,
+    name: MEDIA_TRACK_NAME,
     kind: 'media',
     elements: [],
   }
@@ -27,6 +25,7 @@ function buildVideoElement(
   asset: { id: string; fileName: string; source: string; duration?: number; width?: number; height?: number },
   options: AddVideoOptions,
   resolution: { w: number; h: number },
+  startTime: number,
 ): VideoElement {
   const baseLabel = options.label ?? asset.fileName
   const name = sequence === 0 ? baseLabel : `${baseLabel} ${sequence + 1}`
@@ -36,18 +35,26 @@ function buildVideoElement(
       ? crypto.randomUUID()
       : `video-${Date.now()}-${sequence}`
 
-  // Default to full canvas size
-  const width = asset.width ?? resolution.w
-  const height = asset.height ?? resolution.h
-  const x = (resolution.w - width) / 2
-  const y = (resolution.h - height) / 2
+  const maxWidth = Math.round(resolution.w * 0.7)
+  const maxHeight = Math.round(resolution.h * 0.7)
+  const intrinsicWidth = asset.width ?? maxWidth
+  const intrinsicHeight = asset.height ?? maxHeight
+  const scale = Math.min(maxWidth / Math.max(intrinsicWidth, 1), maxHeight / Math.max(intrinsicHeight, 1), 1)
+  const width = Math.max(160, Math.round(intrinsicWidth * scale))
+  const height = Math.max(90, Math.round(intrinsicHeight * scale))
+  let x = Math.round((resolution.w - width) / 2)
+  let y = Math.round((resolution.h - height) / 2)
+
+  if (options.dropPosition) {
+    x = Math.round(options.dropPosition.x - width / 2)
+    y = Math.round(options.dropPosition.y - height / 2)
+  }
 
   return {
     id,
     type: 'video',
     name,
-    startTime: 0, // Will be set by caller
-    // Use known duration if present; otherwise a placeholder that will be replaced after metadata loads.
+    startTime,
     duration: options.duration ?? asset.duration ?? 5,
     opacity: 1,
     x,
@@ -75,32 +82,25 @@ export function useAddVideoElement() {
   const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
 
   return useCallback(
-    (options: AddVideoOptions & { startTime?: number }) => {
+    (options: AddVideoOptions) => {
       const asset = assets.find((a) => a.id === options.assetId)
       if (!asset) {
         console.warn('[ElementLibrary][video] asset not found', options)
         return null
       }
-
-      let videoTrack = tracks.find((track) => track.id === VIDEO_TRACK_ID)
-      if (!videoTrack) {
-        videoTrack = createVideoTrack()
+      let mediaTrack = tracks.find((track) => track.id === MEDIA_TRACK_ID)
+      if (!mediaTrack) {
+        mediaTrack = createMediaTrack()
+        createTrack(mediaTrack)
         createTrack(videoTrack)
       }
 
-      const sequence = videoTrack.elements.filter((element) => element.type === 'video').length
-      const element = buildVideoElement(sequence, asset, options, resolution)
-      // Override startTime if provided
-      if (options.startTime !== undefined) {
-        element.startTime = options.startTime
-      } else {
-        element.startTime = currentTime
-      }
-      addElement(videoTrack.id, element)
+      const sequence = mediaTrack.elements.filter((element) => element.type === 'video').length
+      const element = buildVideoElement(sequence, asset, options, resolution, options.startTime ?? currentTime)
+      addElement(mediaTrack.id, element)
       selectElement(element.id, 'element-library')
-      console.log('[ElementLibrary][video] created', { trackId: videoTrack.id, element, assetId: asset.id })
+      console.log('[ElementLibrary][video] created', { trackId: mediaTrack.id, element, assetId: asset.id })
 
-      // If duration is not provided, load video metadata and update the element duration.
       if (!options.duration && !asset.duration) {
         try {
           const video = document.createElement('video')
@@ -109,8 +109,21 @@ export function useAddVideoElement() {
           video.onloadedmetadata = () => {
             const duration = video.duration
             if (Number.isFinite(duration) && duration > 0) {
-              updateElementProperty(videoTrack.id, element.id, 'duration', duration)
-              updateElementProperty(videoTrack.id, element.id, 'trimEnd', duration)
+              updateElementProperty(mediaTrack.id, element.id, 'duration', duration)
+              updateElementProperty(mediaTrack.id, element.id, 'trimEnd', duration)
+              if (Number.isFinite(video.videoWidth) && Number.isFinite(video.videoHeight) && video.videoWidth > 0 && video.videoHeight > 0) {
+                const maxWidth = Math.round(resolution.w * 0.7)
+                const maxHeight = Math.round(resolution.h * 0.7)
+                const scale = Math.min(maxWidth / video.videoWidth, maxHeight / video.videoHeight, 1)
+                const width = Math.max(160, Math.round(video.videoWidth * scale))
+                const height = Math.max(90, Math.round(video.videoHeight * scale))
+                updateElementProperty(mediaTrack.id, element.id, 'width', width)
+                updateElementProperty(mediaTrack.id, element.id, 'height', height)
+                if (!options.dropPosition) {
+                  updateElementProperty(mediaTrack.id, element.id, 'x', Math.round((resolution.w - width) / 2))
+                  updateElementProperty(mediaTrack.id, element.id, 'y', Math.round((resolution.h - height) / 2))
+                }
+              }
               console.log('[ElementLibrary][video] duration resolved', { elementId: element.id, duration })
             }
             video.src = ''
