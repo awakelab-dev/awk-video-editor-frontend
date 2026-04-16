@@ -63,6 +63,8 @@ function buildImageElement(
     rotation: 0,
     source: asset.source,
     fit: 'contain',
+    borderWidth: 0,
+    borderColor: '#ffffff',
   }
 }
 

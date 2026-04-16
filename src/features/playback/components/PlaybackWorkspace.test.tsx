@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaybackWorkspace } from './PlaybackWorkspace'
 import { useEditorStore } from '../../../shared/store'
-import type { AudioElement, ShapeElement, TextElement } from '../../../shared/types/editor'
+import type { AudioElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 
 class ResizeObserverMock {
   observe() {}
@@ -70,6 +70,28 @@ function buildAudioElement(): AudioElement {
     muted: false,
     fadeIn: 0,
     fadeOut: 0,
+  }
+}
+
+function buildVideoElement(): VideoElement {
+  return {
+    id: 'video-1',
+    type: 'video',
+    name: 'Video principal',
+    startTime: 0,
+    duration: 10,
+    opacity: 1,
+    x: 100,
+    y: 80,
+    width: 320,
+    height: 180,
+    rotation: 0,
+    source: '/video.mp4',
+    trimStart: 2,
+    trimEnd: 6,
+    playbackRate: 1,
+    volume: 1,
+    muted: false,
   }
 }
 
@@ -319,6 +341,24 @@ describe('PlaybackWorkspace', () => {
     useEditorStore.setState({ currentTime: 8.5 })
 
     expect(audioInstances[0]?.volume).toBeCloseTo(0.5, 3)
+  })
+
+  it('respeta trim in y trim out de video en la ventana activa', () => {
+    useEditorStore.setState({
+      currentTime: 5,
+      isPlaying: false,
+      tracks: [
+        {
+          id: 'track-video',
+          name: 'Video',
+          elements: [buildVideoElement()],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    expect(screen.queryAllByTestId('playback-video-overlay')).toHaveLength(0)
   })
 })
 

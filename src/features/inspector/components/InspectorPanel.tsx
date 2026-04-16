@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { ChevronDown, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Volume2 } from 'lucide-react'
+import { ChevronDown, Image as ImageIcon, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Video as VideoIcon, Volume2 } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
 import type { EditorElement } from '../../../shared/types/editor'
 
@@ -288,6 +288,8 @@ export function InspectorPanel() {
 
   const selectedElement = selectedElementContext?.element ?? null
   const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null
+  const selectedImageElement = selectedElement?.type === 'image' ? selectedElement : null
+  const selectedVideoElement = selectedElement?.type === 'video' ? selectedElement : null
   const selectedAudioElement = selectedElement?.type === 'audio' ? selectedElement : null
   const selectedShapeElement = selectedElement?.type === 'shape' ? selectedElement : null
   const isSquareElement =
@@ -467,6 +469,246 @@ export function InspectorPanel() {
                 value={selectedTextElement.text}
               />
             </div>
+          </PropertySection>
+        ) : selectedImageElement ? (
+          <PropertySection icon={<ImageIcon className="h-[15px] w-[15px]" />} title="Imagen">
+            <PropertyRow label="Tamano">
+              <NumericField
+                ariaLabel="Tamano imagen"
+                min={1}
+                onValueChange={(nextSize) => {
+                  const safeSize = clamp(nextSize, 1, 9999)
+                  const currentWidth = Math.max(1, selectedImageElement.width)
+                  const aspectRatio = selectedImageElement.height / currentWidth
+                  const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
+                  updateSelectedProperty('width', safeSize)
+                  updateSelectedProperty('height', nextHeight)
+                }}
+                step={1}
+                value={Math.round(selectedImageElement.width)}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Posicion X">
+              <NumericField
+                ariaLabel="Posicion X imagen"
+                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                value={selectedImageElement.x}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Posicion Y">
+              <NumericField
+                ariaLabel="Posicion Y imagen"
+                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                value={selectedImageElement.y}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Borde: Grosor">
+              <NumericField
+                ariaLabel="Grosor borde imagen"
+                min={0}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty('borderWidth', Math.max(0, nextValue))
+                }
+                step={1}
+                value={selectedImageElement.borderWidth}
+                widthClassName="w-[62px]"
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Borde: Color">
+              <input
+                aria-label="Color borde imagen"
+                className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
+                onChange={(event) => updateSelectedProperty('borderColor', event.target.value)}
+                type="color"
+                value={selectedImageElement.borderColor}
+              />
+              <input
+                aria-label="Codigo color borde imagen"
+                className={`${inputClassName} w-[90px] text-right tabular-nums`}
+                onChange={(event) => updateSelectedProperty('borderColor', event.target.value)}
+                value={selectedImageElement.borderColor}
+              />
+            </PropertyRow>
+
+            <PropertyRow label="Rotacion">
+              <input
+                aria-label="Rotacion imagen"
+                className="w-full"
+                max={180}
+                min={-180}
+                onChange={(event) => {
+                  const nextRotation = Number(event.target.value)
+                  if (!Number.isFinite(nextRotation)) {
+                    return
+                  }
+                  updateSelectedProperty('rotation', nextRotation)
+                }}
+                step={1}
+                type="range"
+                value={Math.round(selectedImageElement.rotation)}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {Math.round(selectedImageElement.rotation)}°
+              </span>
+            </PropertyRow>
+
+            <PropertyRow label="Opacidad">
+              <input
+                aria-label="Opacidad imagen"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value)
+                  if (!Number.isFinite(nextPercent)) {
+                    return
+                  }
+                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                }}
+                type="range"
+                value={selectedOpacityPercent}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {selectedOpacityPercent}%
+              </span>
+            </PropertyRow>
+          </PropertySection>
+        ) : selectedVideoElement ? (
+          <PropertySection icon={<VideoIcon className="h-[15px] w-[15px]" />} title="Video">
+            <PropertyRow label="Tamano">
+              <NumericField
+                ariaLabel="Tamano video"
+                min={1}
+                onValueChange={(nextSize) => {
+                  const safeSize = clamp(nextSize, 1, 9999)
+                  const currentWidth = Math.max(1, selectedVideoElement.width)
+                  const aspectRatio = selectedVideoElement.height / currentWidth
+                  const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
+                  updateSelectedProperty('width', safeSize)
+                  updateSelectedProperty('height', nextHeight)
+                }}
+                step={1}
+                value={Math.round(selectedVideoElement.width)}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Posicion X">
+              <NumericField
+                ariaLabel="Posicion X video"
+                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                value={selectedVideoElement.x}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Posicion Y">
+              <NumericField
+                ariaLabel="Posicion Y video"
+                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                value={selectedVideoElement.y}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Velocidad">
+              <NumericField
+                ariaLabel="Velocidad video"
+                max={4}
+                min={0.1}
+                onValueChange={(nextValue) => updateSelectedProperty('playbackRate', clamp(nextValue, 0.1, 4))}
+                step={0.1}
+                value={Number(selectedVideoElement.playbackRate.toFixed(2))}
+              />
+              <span className="w-4 text-[10px] text-[#6b7280]">x</span>
+            </PropertyRow>
+
+            <PropertyRow label="Volumen">
+              <input
+                aria-label="Volumen video"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value)
+                  if (!Number.isFinite(nextPercent)) {
+                    return
+                  }
+                  updateSelectedProperty('volume', clamp(nextPercent, 0, 100) / 100)
+                }}
+                type="range"
+                value={volumeToPercent(selectedVideoElement.volume)}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {volumeToPercent(selectedVideoElement.volume)}%
+              </span>
+            </PropertyRow>
+
+            <PropertyRow label="Silencio">
+              <button
+                aria-label="Silencio video"
+                className={`${inputClassName} inline-flex w-[92px] items-center justify-center px-0 text-[11px] font-medium ${
+                  selectedVideoElement.muted
+                    ? 'border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]'
+                    : 'text-[#9ca3af]'
+                }`}
+                onClick={() => updateSelectedProperty('muted', !selectedVideoElement.muted)}
+                type="button"
+              >
+                {selectedVideoElement.muted ? 'Activado' : 'Desactivado'}
+              </button>
+            </PropertyRow>
+
+            <PropertyRow label="Rotacion">
+              <input
+                aria-label="Rotacion video"
+                className="w-full"
+                max={180}
+                min={-180}
+                onChange={(event) => {
+                  const nextRotation = Number(event.target.value)
+                  if (!Number.isFinite(nextRotation)) {
+                    return
+                  }
+                  updateSelectedProperty('rotation', nextRotation)
+                }}
+                step={1}
+                type="range"
+                value={Math.round(selectedVideoElement.rotation)}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {Math.round(selectedVideoElement.rotation)}°
+              </span>
+            </PropertyRow>
+
+            <PropertyRow label="Opacidad">
+              <input
+                aria-label="Opacidad video"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value)
+                  if (!Number.isFinite(nextPercent)) {
+                    return
+                  }
+                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                }}
+                type="range"
+                value={selectedOpacityPercent}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {selectedOpacityPercent}%
+              </span>
+            </PropertyRow>
           </PropertySection>
         ) : selectedAudioElement ? (
           <PropertySection icon={<Volume2 className="h-[15px] w-[15px]" />} title="Audio">
@@ -685,7 +927,7 @@ export function InspectorPanel() {
           </PropertySection>
         ) : (
           <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-xs text-[#6b7280]">
-            Selecciona un texto o una forma para editar sus propiedades.
+            Selecciona un texto, imagen, video, audio o forma para editar sus propiedades.
           </div>
         )}
       </div>
