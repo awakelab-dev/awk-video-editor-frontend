@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import type { AudioElement, EditorElement, ImageElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 import { usePlaybackEngine } from '../hooks/usePlaybackEngine'
-import { clamp, formatTimecode, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
+import { clamp, formatTimecode, getMaxTrackEnd, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
 
 type ActiveVisualContext = {
   trackId: string
@@ -156,6 +156,7 @@ export function PlaybackWorkspace() {
   const lastNonZeroVolumeRef = useRef(1)
 
   const playbackDuration = useMemo(() => getPlaybackDuration(projectDuration, tracks), [projectDuration, tracks])
+  const timelineEndTime = useMemo(() => getMaxTrackEnd(tracks), [tracks])
 
   useEffect(() => {
     if (!previewRef.current) {
@@ -381,11 +382,11 @@ export function PlaybackWorkspace() {
   }
 
   const handleSkipBackward = () => {
-    seek(clamp(currentTime - 1, 0, playbackDuration))
+    seek(0)
   }
 
   const handleSkipForward = () => {
-    seek(clamp(currentTime + 1, 0, playbackDuration))
+    seek(timelineEndTime)
   }
 
   const handlePlayPause = () => {

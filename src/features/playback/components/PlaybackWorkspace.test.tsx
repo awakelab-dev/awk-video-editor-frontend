@@ -153,6 +153,48 @@ describe('PlaybackWorkspace', () => {
     }
   })
 
+  it('el boton Retroceder lleva el playhead al inicio del timeline', () => {
+    useEditorStore.setState({
+      currentTime: 7,
+    })
+
+    render(<PlaybackWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retroceder' }))
+
+    expect(useEditorStore.getState().currentTime).toBe(0)
+  })
+
+  it('el boton Avanzar lleva el playhead al final del ultimo elemento entre todas las tracks', () => {
+    const secondText = buildTextElement()
+    secondText.id = 'text-2'
+    secondText.startTime = 12
+    secondText.duration = 8
+
+    useEditorStore.setState({
+      currentTime: 0,
+      duration: 150,
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto 1',
+          elements: [buildTextElement()],
+        },
+        {
+          id: 'track-2',
+          name: 'Texto 2',
+          elements: [secondText],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Avanzar' }))
+
+    expect(useEditorStore.getState().currentTime).toBe(20)
+  })
+
   it('permite arrastrar formas en el renderer y actualiza su posicion', () => {
     useEditorStore.setState({
       currentTime: 0,
