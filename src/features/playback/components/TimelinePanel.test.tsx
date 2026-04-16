@@ -257,4 +257,52 @@ describe('TimelinePanel', () => {
     expect(state.tracks.find((track) => track.id === TEXT_TRACK_ID)?.elements.map((el) => el.id)).toEqual(['text-1'])
     expect(state.tracks.find((track) => track.id === AUDIO_TRACK_ID)?.elements).toHaveLength(0)
   })
+
+  it('elimina el clip seleccionado desde el botón "Eliminar selección"', () => {
+    useEditorStore.setState({
+      selectedElementId: 'text-1',
+      selectionSource: 'timeline',
+    })
+
+    render(<TimelinePanel />)
+    fireEvent.click(screen.getByLabelText('Eliminar selección'))
+
+    const state = useEditorStore.getState()
+    expect(state.tracks[0]?.elements).toHaveLength(0)
+    expect(state.selectedElementId).toBeNull()
+    expect(state.selectionSource).toBeNull()
+  })
+
+  it('elimina el clip seleccionado al pulsar Suprimir', () => {
+    useEditorStore.setState({
+      selectedElementId: 'text-1',
+      selectionSource: 'timeline',
+    })
+
+    render(<TimelinePanel />)
+    fireEvent.keyDown(window, { key: 'Delete' })
+
+    const state = useEditorStore.getState()
+    expect(state.tracks[0]?.elements).toHaveLength(0)
+    expect(state.selectedElementId).toBeNull()
+  })
+
+  it('no elimina al pulsar Backspace mientras se escribe en un input', () => {
+    useEditorStore.setState({
+      selectedElementId: 'text-1',
+      selectionSource: 'timeline',
+    })
+
+    render(<TimelinePanel />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Backspace' })
+    input.remove()
+
+    const state = useEditorStore.getState()
+    expect(state.tracks[0]?.elements).toHaveLength(1)
+    expect(state.selectedElementId).toBe('text-1')
+  })
 })

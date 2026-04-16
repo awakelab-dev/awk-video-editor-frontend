@@ -161,6 +161,44 @@ describe('tracksSlice addElement', () => {
   })
 })
 
+describe('tracksSlice removeSelectedElement', () => {
+  beforeEach(() => {
+    useEditorStore.setState({
+      tracks: buildTracks(),
+      selectedElementId: 'el-1',
+      selectionSource: 'timeline',
+    })
+  })
+
+  it('elimina el elemento seleccionado y limpia la selección', () => {
+    useEditorStore.getState().removeSelectedElement()
+
+    const state = useEditorStore.getState()
+    expect(state.tracks.find((track) => track.id === 'track-a')?.elements.map((element) => element.id)).toEqual([
+      'el-2',
+    ])
+    expect(state.selectedElementId).toBeNull()
+    expect(state.selectionSource).toBeNull()
+  })
+
+  it('si la selección apunta a un id inexistente, solo limpia selección', () => {
+    useEditorStore.setState({
+      selectedElementId: 'no-existe',
+      selectionSource: 'timeline',
+    })
+
+    useEditorStore.getState().removeSelectedElement()
+
+    const state = useEditorStore.getState()
+    expect(state.tracks.find((track) => track.id === 'track-a')?.elements.map((element) => element.id)).toEqual([
+      'el-1',
+      'el-2',
+    ])
+    expect(state.selectedElementId).toBeNull()
+    expect(state.selectionSource).toBeNull()
+  })
+})
+
 describe('tracksSlice default tracks', () => {
   beforeEach(() => {
     useEditorStore.setState({
