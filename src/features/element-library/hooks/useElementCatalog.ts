@@ -50,8 +50,13 @@ const catalog: ElementLibraryItem[] = [
     description: 'Forma cuadrada',
     shapePreset: 'background',
   },
-  { id: 'transition-1', name: 'Fade', type: 'transition', category: 'transitions' },
-  { id: 'transition-2', name: 'Wipe', type: 'transition', category: 'transitions' },
+  { id: 'transition-1', name: 'Fade', type: 'transition', category: 'transitions', transitionPreset: 'fade', description: 'Fundido suave' },
+  { id: 'transition-2', name: 'Wipe', type: 'transition', category: 'transitions', transitionPreset: 'wipe', description: 'Barrido lateral' },
+  { id: 'transition-3', name: 'Slide', type: 'transition', category: 'transitions', transitionPreset: 'slide', description: 'Deslizamiento' },
+  { id: 'transition-4', name: 'Dissolve', type: 'transition', category: 'transitions', transitionPreset: 'dissolve', description: 'Disolución' },
+  { id: 'transition-5', name: 'Zoom', type: 'transition', category: 'transitions', transitionPreset: 'zoom', description: 'Zoom in/out' },
+  { id: 'transition-6', name: 'Blur', type: 'transition', category: 'transitions', transitionPreset: 'blur', description: 'Desenfoque' },
+  { id: 'transition-7', name: 'Crossfade', type: 'transition', category: 'transitions', transitionPreset: 'crossfade', description: 'Fundido cruzado' },
 ]
 
 export function useElementCatalog(additionalItems: ElementLibraryItem[] = []) {
