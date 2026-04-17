@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { ChevronDown, Image as ImageIcon, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Video as VideoIcon, Volume2 } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
-import type { EditorElement } from '../../../shared/types/editor'
+import { TRANSITION_PRESETS } from '../../../shared/types/editor'
+import type { EditorElement, EditorEffect, TransitionPreset } from '../../../shared/types/editor'
 
 type KeysOfUnion<T> = T extends T ? keyof T : never
 type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
@@ -68,6 +69,10 @@ const inputClassName =
 const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`
 const stepperButtonClassName =
   'flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]'
+const inspectorEffectOptions: Array<{ label: string; value: TransitionPreset }> = TRANSITION_PRESETS.map((preset) => ({
+  label: preset.charAt(0).toUpperCase() + preset.slice(1),
+  value: preset,
+}))
 const textFontOptions = [
   { label: 'Arial', value: 'Arial, sans-serif' },
   { label: 'Verdana', value: 'Verdana, sans-serif' },
@@ -311,7 +316,6 @@ export function InspectorPanel() {
     : ''
 
   const selectedOpacityPercent = selectedElement ? opacityToPercent(selectedElement.opacity) : 100
-  const [selectedEffectByElementId, setSelectedEffectByElementId] = useState<Record<string, string>>({})
 
   const updateSelectedProperty = <K extends EditorElementKey>(property: K, value: EditorElementValue<K>) => {
     if (!selectedElementContext) {
@@ -327,7 +331,11 @@ export function InspectorPanel() {
   }
 
   const renderEffectsSelector = (elementId: string) => {
-    const currentEffect = selectedEffectByElementId[elementId] ?? 'Ninguno'
+    const selectedEffect = selectedElement?.id === elementId ? selectedElement.effects[0] : undefined
+    const currentEffect =
+      selectedEffect && TRANSITION_PRESETS.includes(selectedEffect as TransitionPreset)
+        ? selectedEffect
+        : 'none'
 
     return (
       <PropertyRow label="Efectos">
@@ -336,18 +344,19 @@ export function InspectorPanel() {
             aria-label="Efectos"
             className={`${inputClassName} w-full appearance-none pr-8`}
             onChange={(event) =>
-              setSelectedEffectByElementId((prevState) => ({
-                ...prevState,
-                [elementId]: event.target.value,
-              }))
+              updateSelectedProperty(
+                'effects',
+                event.target.value === 'none' ? [] : [event.target.value as unknown as EditorEffect],
+              )
             }
             value={currentEffect}
           >
-            <option value="Ninguno">Ninguno</option>
-            <option value="Rebote">Rebote</option>
-            <option value="Cortinilla">Cortinilla</option>
-            <option value="Estrella">Estrella</option>
-            <option value="Cerrado">Cerrado</option>
+            <option value="none">Ninguno</option>
+            {inspectorEffectOptions.map((effectOption) => (
+              <option key={effectOption.value} value={effectOption.value}>
+                {effectOption.label}
+              </option>
+            ))}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7f8695]" />
         </div>
@@ -812,6 +821,8 @@ export function InspectorPanel() {
               />
               <span className="w-4 text-[10px] text-[#6b7280]">s</span>
             </PropertyRow>
+
+            {renderEffectsSelector(selectedAudioElement.id)}
           </PropertySection>
         ) : selectedShapeElement ? (
           <PropertySection

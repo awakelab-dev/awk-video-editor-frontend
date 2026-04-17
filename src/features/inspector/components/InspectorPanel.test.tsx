@@ -418,6 +418,40 @@ describe('InspectorPanel', () => {
     }
   })
 
+  it('guarda el efecto seleccionado en el estado del elemento', () => {
+    const textElement = buildTextElement()
+
+    useEditorStore.setState({
+      selectedElementId: textElement.id,
+      selectionSource: 'canvas',
+      tracks: [
+        {
+          elements: [textElement],
+          id: 'track-text',
+          name: 'Texto',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    fireEvent.change(screen.getByLabelText('Efectos'), { target: { value: 'fade' } })
+
+    const updatedText = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedText?.type).toBe('text')
+    if (updatedText?.type === 'text') {
+      expect(updatedText.effects).toEqual(['fade'])
+    }
+
+    fireEvent.change(screen.getByLabelText('Efectos'), { target: { value: 'none' } })
+
+    const resetText = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(resetText?.type).toBe('text')
+    if (resetText?.type === 'text') {
+      expect(resetText.effects).toEqual([])
+    }
+  })
+
   it('muestra estado vacio cuando no hay seleccion', () => {
     render(<InspectorPanel />)
 
