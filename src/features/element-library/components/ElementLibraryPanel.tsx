@@ -24,7 +24,6 @@ type DragEndDetail = {
   clientY: number
 }
 
-
 import type { MediaAsset } from '../../../shared/types/editor'
 import { useEditorStore } from '../../../shared/store'
 
@@ -53,6 +52,28 @@ function ResourceGlyph({ type }: { type: ElementLibraryItemType }) {
   if (type === 'transition') return <Zap className="h-[18px] w-[18px]" />
   return <Film className="h-[18px] w-[18px]" />
 }
+
+function AudioWaveform() {
+  return (
+    <div className="flex h-12 w-24 items-center justify-center gap-0.5">
+      {Array.from({ length: 8 }).map((_, i) => {
+        const heights = [35, 55, 40, 70, 50, 65, 45, 60]
+        return (
+          <div
+            key={i}
+            className="w-1 rounded-full bg-[#4ade80]"
+            style={{
+              height: `${heights[i]}%`,
+              animation: 'pulse 1s ease-in-out infinite',
+              animationDelay: `${i * 0.1}s`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export function ElementLibraryPanel() {
   const [uploadedItems, setUploadedItems] = useState<ElementLibraryItem[]>([])
   const { items, category, setCategory, query, setQuery, total } = useElementCatalog(uploadedItems)
@@ -65,6 +86,7 @@ export function ElementLibraryPanel() {
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const importAsset = useEditorStore((state) => state.importAsset)
   const resolution = useEditorStore((state) => state.resolution)
@@ -99,11 +121,11 @@ export function ElementLibraryPanel() {
     setFeedback(`${item.name} añadido al lienzo`)
     window.setTimeout(() => setFeedback(null), 2000)
   }
+
   const emptyStateLabel = useMemo(() => {
     if (query.trim().length > 0) return 'Sin resultados para la búsqueda.'
     return 'No hay elementos en esta categoría aún.'
   }, [query])
-
 
   return (
     <aside className="row-start-1 min-h-0 border-r border-[#2a2a34] bg-[#1a1a20]">
@@ -149,7 +171,6 @@ export function ElementLibraryPanel() {
           />
         </label>
 
-
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {feedback && (
             <div
@@ -172,6 +193,10 @@ export function ElementLibraryPanel() {
                 const isImportedAudio = item.type === 'audio' && item.category === 'audio'
                 const isImportedImage = item.type === 'image' && item.category === 'media'
                 const isImportedVideo = item.type === 'video' && item.category === 'media'
+                const hasPreview = !!item.preview
+                const isHovered = hoveredItemId === item.id
+                const isDraggable = isPreset || isImportedAudio || isImportedImage || isImportedVideo
+
                 const payload: DragPayload | null =
                   item.category === 'text' && item.textPreset
                     ? { kind: 'text', preset: item.textPreset, label: item.name }
@@ -181,16 +206,18 @@ export function ElementLibraryPanel() {
                         ? { kind: 'audio', assetId: item.id, label: item.name }
                         : isImportedImage
                           ? { kind: 'image', assetId: item.id, label: item.name }
-                        : isImportedVideo
-                          ? { kind: 'video', assetId: item.id, label: item.name }
-                          : null
+                          : isImportedVideo
+                            ? { kind: 'video', assetId: item.id, label: item.name }
+                            : null
 
                 return (
                   <article
-                    className={`group rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
+                    className={`group relative rounded-[8px] border border-transparent p-1 transition hover:-translate-y-0.5 ${
                       isRecentPreset ? 'border-[#6366f1] bg-[#1f1f2d]' : ''
-                    } ${isPreset || isImportedAudio || isImportedImage || isImportedVideo ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
+                    } ${isDraggable ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-pointer'}`}
                     key={item.id}
+                    onMouseEnter={() => setHoveredItemId(item.id)}
+                    onMouseLeave={() => setHoveredItemId(null)}
                     aria-current={isRecentPreset}
                     onClick={() => {
                       console.log('[ElementLibrary] add element ->', item)
@@ -201,21 +228,15 @@ export function ElementLibraryPanel() {
                       } else if (item.type === 'audio') {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         const created = addAudioElement({ assetId: item.id, label: item.name })
-                        if (!created) {
-                          addElement(item)
-                        }
+                        if (!created) addElement(item)
                       } else if (item.type === 'image') {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         const created = addImageElement({ assetId: item.id, label: item.name })
-                        if (!created) {
-                          addElement(item)
-                        }
+                        if (!created) addElement(item)
                       } else if (item.type === 'video') {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         const created = addVideoElement({ assetId: item.id, label: item.name })
-                        if (!created) {
-                          addElement(item)
-                        }
+                        if (!created) addElement(item)
                       } else {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         addElement(item)
@@ -223,151 +244,181 @@ export function ElementLibraryPanel() {
                     }}
                   >
                     <div
-                      className={`relative flex aspect-[16/10] items-center justify-center rounded-[6px] border transition group-hover:border-[#6366f1] ${
+                      className={`relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-[6px] border transition group-hover:border-[#6366f1] ${
                         isRecentPreset ? 'border-[#6366f1]' : 'border-[#2a2a34]'
-                      } ${cardByType[item.type]}`}
-                      onMouseDown={(event: ReactMouseEvent<HTMLDivElement>) => {
-                        if (!payload) return
-
-                        event.preventDefault()
-                        event.stopPropagation()
-
-                        console.log('[ElementLibrary][drag] start', {
-                          id: item.id,
-                          name: item.name,
-                          payload,
-                          clientX: event.clientX,
-                          clientY: event.clientY,
-                        })
-
-                        activeDragPayloadRef.current = payload
-
-                        // cleanup previous overlay if any
-                        dragOverlayCleanupRef.current?.()
-                        dragOverlayCleanupRef.current = null
-
-                        const overlay = document.createElement('div')
-                        overlay.textContent = item.name
-                        overlay.style.position = 'fixed'
-                        overlay.style.left = `${event.clientX}px`
-                        overlay.style.top = `${event.clientY}px`
-                        overlay.style.transform = 'translate(-50%, -50%)'
-                        overlay.style.padding = '6px 10px'
-                        overlay.style.borderRadius = '10px'
-                        overlay.style.background = 'rgba(99, 102, 241, 0.95)'
-                        overlay.style.color = 'white'
-                        overlay.style.fontSize = '12px'
-                        overlay.style.fontWeight = '600'
-                        overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.45)'
-                        overlay.style.pointerEvents = 'none'
-                        overlay.style.userSelect = 'none'
-                        overlay.style.zIndex = '2147483647'
-                        document.body.appendChild(overlay)
-                        dragOverlayElRef.current = overlay
-
-                        let lastPointerX = event.clientX
-                        let lastPointerY = event.clientY
-
-                        const onMouseMove = (e: MouseEvent) => {
-                          if (!dragOverlayElRef.current) return
-                          lastPointerX = e.clientX
-                          lastPointerY = e.clientY
-                          dragOverlayElRef.current.style.left = `${e.clientX}px`
-                          dragOverlayElRef.current.style.top = `${e.clientY}px`
-                        }
-
-                        const cleanup = (mouseUpEvent?: MouseEvent) => {
-                          console.log('[ElementLibrary][drag] cleanup')
-                          window.removeEventListener('mousemove', onMouseMove)
-                          window.removeEventListener('mouseup', cleanup)
-                          dragOverlayElRef.current?.remove()
-                          dragOverlayElRef.current = null
-                          dragOverlayCleanupRef.current = null
-
-                          const activePayload = activeDragPayloadRef.current
-                          activeDragPayloadRef.current = null
-                          if (!activePayload) return
-
-                          const clientX = mouseUpEvent?.clientX ?? lastPointerX
-                          const clientY = mouseUpEvent?.clientY ?? lastPointerY
-
-                          // Only allow drop inside preview area.
-                          const preview = document.querySelector('[data-testid="playback-preview"]') as HTMLElement | null
-                          const withinPreview = (() => {
-                            if (!preview) return false
-                            const rect = preview.getBoundingClientRect()
-                            return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
-                          })()
-
-                          if (!withinPreview) {
-                            console.log('[ElementLibrary][drag] end outside preview - ignored', { clientX, clientY })
-                            return
-                          }
-
-                          const detail: DragEndDetail = {
-                            payload: activePayload,
-                            clientX,
-                            clientY,
-                          }
-                          console.log('[ElementLibrary][drag] end', detail)
-
-                          // Translate drop point to canvas coordinates and create the element now.
-                          if (preview) {
-                            const rect = preview.getBoundingClientRect()
-                            const relX = (clientX - rect.left) / Math.max(rect.width, 1)
-                            const relY = (clientY - rect.top) / Math.max(rect.height, 1)
-                            const dropPosition = {
-                              x: Math.round(relX * resolution.w),
-                              y: Math.round(relY * resolution.h),
-                            }
-
-                          if (activePayload.kind === 'text') {
-                            addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
-                          } else if (activePayload.kind === 'shape') {
-                            addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
-                          } else if (activePayload.kind === 'audio') {
-                            addAudioElement({ assetId: activePayload.assetId, label: activePayload.label })
-                          } else if (activePayload.kind === 'image') {
-                            addImageElement({
-                              assetId: activePayload.assetId,
-                              label: activePayload.label,
-                              dropPosition,
-                            })
-                          } else if (activePayload.kind === 'video') {
-                            addVideoElement({
-                              assetId: activePayload.assetId,
-                              label: activePayload.label,
-                              dropPosition,
-                            })
-                          }
-                          }
-
-                          // Still emit event so other parts can react if needed.
-                          window.dispatchEvent(new CustomEvent<DragEndDetail>('element-library:drag-end', { detail }))
-                        }
-
-                        window.addEventListener('mousemove', onMouseMove)
-                        window.addEventListener('mouseup', cleanup)
-                        dragOverlayCleanupRef.current = cleanup
-                      }}
+                      } ${hasPreview ? '' : cardByType[item.type]}`}
                     >
-                      <ResourceGlyph type={item.type} />
-                      {isRecentPreset && (
+                      {/* Real thumbnail preview for imported media */}
+                      {hasPreview && (
+                        <img
+                          src={item.preview}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                        />
+                      )}
+
+                      {/* Hover preview for presets */}
+                      {!hasPreview && isHovered && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#1a1a20]">
+                          {item.type === 'audio' && <AudioWaveform />}
+                          {item.textPreset && (
+                            <span
+                              className="text-white drop-shadow-md"
+                              style={{
+                                fontSize: item.textPreset === 'title' ? '1.2rem' : item.textPreset === 'subtitle' ? '0.9rem' : '0.7rem',
+                                fontWeight: item.textPreset === 'title' ? 800 : item.textPreset === 'subtitle' ? 600 : 500,
+                              }}
+                            >
+                              {item.textPreset === 'title' ? 'Título' : item.textPreset === 'subtitle' ? 'Subtítulo' : item.textPreset === 'lower-third' ? 'Lower Third' : 'Texto'}
+                            </span>
+                          )}
+                          {item.shapePreset && (
+                            <div
+                              className={item.shapePreset === 'rectangle' ? 'h-6 w-10' : 'h-10 w-10'}
+                              style={{
+                                backgroundColor: item.shapePreset === 'ellipse' ? '#22c55e' : '#4f46e5',
+                                borderRadius: item.shapePreset === 'ellipse' ? '9999px' : item.shapePreset === 'background' ? '12px' : '8px',
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Default icon (hidden when showing preview) */}
+                      {(!hasPreview && !isHovered) && <ResourceGlyph type={item.type} />}
+
+                      {/* Badges - only when not showing preview */}
+                      {!hasPreview && isRecentPreset && (
                         <span className="absolute left-1.5 top-1.5 rounded-[4px] bg-[#6366f1] px-1.5 py-px text-[9px] font-semibold text-white">
                           Añadido
                         </span>
                       )}
-                    {item.duration && (
-                      <span className="absolute bottom-1 right-1 rounded-[3px] bg-black/70 px-1.5 py-px text-[9px] font-semibold text-white">
-                        {item.duration}
-                      </span>
-                    )}
-                  </div>
-                  <div className="px-0.5 pt-1.5">
-                    <p className="truncate text-[11px] text-[#e5e7eb]">{item.name}</p>
-                    {item.description && <p className="truncate text-[10px] text-[#6b7280]">{item.description}</p>}
-                  </div>
-                </article>
+                      {!hasPreview && item.duration && (
+                        <span className="absolute bottom-1 right-1 rounded-[3px] bg-black/70 px-1.5 py-px text-[9px] font-semibold text-white">
+                          {item.duration}
+                        </span>
+                      )}
+
+                      {/* Drag overlay capture area */}
+                      {isDraggable && (
+                        <div
+                          className="absolute inset-0 z-20"
+                          onMouseDown={(event: ReactMouseEvent<HTMLDivElement>) => {
+                            setHoveredItemId(null)
+                            if (!payload) return
+
+                            event.preventDefault()
+                            event.stopPropagation()
+
+                            console.log('[ElementLibrary][drag] start', {
+                              id: item.id,
+                              name: item.name,
+                              payload,
+                              clientX: event.clientX,
+                              clientY: event.clientY,
+                            })
+
+                            activeDragPayloadRef.current = payload
+
+                            dragOverlayCleanupRef.current?.()
+                            dragOverlayCleanupRef.current = null
+
+                            const overlay = document.createElement('div')
+                            overlay.textContent = item.name
+                            overlay.style.position = 'fixed'
+                            overlay.style.left = `${event.clientX}px`
+                            overlay.style.top = `${event.clientY}px`
+                            overlay.style.transform = 'translate(-50%, -50%)'
+                            overlay.style.padding = '6px 10px'
+                            overlay.style.borderRadius = '10px'
+                            overlay.style.background = 'rgba(99, 102, 241, 0.95)'
+                            overlay.style.color = 'white'
+                            overlay.style.fontSize = '12px'
+                            overlay.style.fontWeight = '600'
+                            overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.45)'
+                            overlay.style.pointerEvents = 'none'
+                            overlay.style.userSelect = 'none'
+                            overlay.style.zIndex = '2147483647'
+                            document.body.appendChild(overlay)
+                            dragOverlayElRef.current = overlay
+
+                            let lastPointerX = event.clientX
+                            let lastPointerY = event.clientY
+
+                            const onMouseMove = (e: MouseEvent) => {
+                              if (!dragOverlayElRef.current) return
+                              lastPointerX = e.clientX
+                              lastPointerY = e.clientY
+                              dragOverlayElRef.current.style.left = `${e.clientX}px`
+                              dragOverlayElRef.current.style.top = `${e.clientY}px`
+                            }
+
+                            const cleanup = (mouseUpEvent?: MouseEvent) => {
+                              console.log('[ElementLibrary][drag] cleanup')
+                              window.removeEventListener('mousemove', onMouseMove)
+                              window.removeEventListener('mouseup', cleanup)
+                              dragOverlayElRef.current?.remove()
+                              dragOverlayElRef.current = null
+                              dragOverlayCleanupRef.current = null
+
+                              const activePayload = activeDragPayloadRef.current
+                              activeDragPayloadRef.current = null
+                              if (!activePayload) return
+
+                              const clientX = mouseUpEvent?.clientX ?? lastPointerX
+                              const clientY = mouseUpEvent?.clientY ?? lastPointerY
+
+                              const preview = document.querySelector('[data-testid="playback-preview"]') as HTMLElement | null
+                              const withinPreview = (() => {
+                                if (!preview) return false
+                                const rect = preview.getBoundingClientRect()
+                                return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+                              })()
+
+                              if (!withinPreview) {
+                                console.log('[ElementLibrary][drag] end outside preview - ignored', { clientX, clientY })
+                                return
+                              }
+
+                              const detail: DragEndDetail = { payload: activePayload, clientX, clientY }
+                              console.log('[ElementLibrary][drag] end', detail)
+
+                              if (preview) {
+                                const rect = preview.getBoundingClientRect()
+                                const relX = (clientX - rect.left) / Math.max(rect.width, 1)
+                                const relY = (clientY - rect.top) / Math.max(rect.height, 1)
+                                const dropPosition = { x: Math.round(relX * resolution.w), y: Math.round(relY * resolution.h) }
+
+                                if (activePayload.kind === 'text') {
+                                  addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                                } else if (activePayload.kind === 'shape') {
+                                  addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                                } else if (activePayload.kind === 'audio') {
+                                  addAudioElement({ assetId: activePayload.assetId, label: activePayload.label })
+                                } else if (activePayload.kind === 'image') {
+                                  addImageElement({ assetId: activePayload.assetId, label: activePayload.label, dropPosition })
+                                } else if (activePayload.kind === 'video') {
+                                  addVideoElement({ assetId: activePayload.assetId, label: activePayload.label, dropPosition })
+                                }
+                              }
+
+                              window.dispatchEvent(new CustomEvent<DragEndDetail>('element-library:drag-end', { detail }))
+                            }
+
+                            window.addEventListener('mousemove', onMouseMove)
+                            window.addEventListener('mouseup', cleanup)
+                            dragOverlayCleanupRef.current = cleanup
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div className="px-0.5 pt-1.5">
+                      <p className="truncate text-[11px] text-[#e5e7eb]">{item.name}</p>
+                      {item.description && <p className="truncate text-[10px] text-[#6b7280]">{item.description}</p>}
+                    </div>
+                  </article>
                 )
               })}
             </div>
@@ -397,12 +448,75 @@ export function ElementLibraryPanel() {
                   ? '.mp3,.wav,.ogg,.flac'
                   : '.mp4,.mov,.webm,.mkv,.avi,.png,.jpg,.jpeg,.svg,.gif'
               }
-              onChange={(e) => {
+              onChange={async (e) => {
                 const files = Array.from(e.target.files ?? [])
                 if (files.length === 0) return
 
                 const mappedItems: ElementLibraryItem[] = []
-                files.forEach((file, index) => {
+                
+                const generateVideoThumbnail = (file: File): Promise<string> => {
+                  return new Promise((resolve) => {
+                    const video = document.createElement('video')
+                    video.preload = 'metadata'
+                    video.src = URL.createObjectURL(file)
+                    video.muted = true
+                    
+                    video.onloadedmetadata = () => {
+                      video.currentTime = Math.min(video.duration * 0.25, 5)
+                    }
+                    
+                    video.onseeked = () => {
+                      const canvas = document.createElement('canvas')
+                      canvas.width = 160
+                      canvas.height = 90
+                      const ctx = canvas.getContext('2d')
+                      if (ctx) {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                        resolve(canvas.toDataURL('image/jpeg', 0.7))
+                      }
+                      URL.revokeObjectURL(video.src)
+                    }
+                    
+                    video.onerror = () => {
+                      resolve('')
+                      URL.revokeObjectURL(video.src)
+                    }
+                  })
+                }
+                
+                const generateAudioWaveform = (file: File): Promise<string> => {
+                  return new Promise((resolve) => {
+                    const canvas = document.createElement('canvas')
+                    canvas.width = 160
+                    canvas.height = 90
+                    const ctx = canvas.getContext('2d')
+                    if (!ctx) {
+                      resolve('')
+                      return
+                    }
+                    
+                    ctx.fillStyle = '#1a1a20'
+                    ctx.fillRect(0, 0, canvas.width, canvas.height)
+                    
+                    const seed = file.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
+                    const bars = 20
+                    const barWidth = 6
+                    const gap = 2
+                    
+                    ctx.fillStyle = '#4ade80'
+                    for (let i = 0; i < bars; i++) {
+                      const height = 20 + (Math.sin(seed + i * 0.5) * 0.5 + 0.5) * 50
+                      const x = (canvas.width - bars * (barWidth + gap)) / 2 + i * (barWidth + gap)
+                      const y = (canvas.height - height) / 2
+                      ctx.fillRect(x, y, barWidth, height)
+                    }
+                    
+                    resolve(canvas.toDataURL('image/jpeg', 0.7))
+                  })
+                }
+                
+                for (let index = 0; index < files.length; index++) {
+                  const file = files[index]
                   const mimeType = file.type
                   const type = mimeType.startsWith('audio')
                     ? 'audio'
@@ -411,18 +525,32 @@ export function ElementLibraryPanel() {
                       : mimeType.startsWith('image')
                         ? 'image'
                         : null
-                  if (!type) return
+                  if (!type) continue
 
                   const id =
                     typeof crypto !== 'undefined' && 'randomUUID' in crypto
                       ? crypto.randomUUID()
                       : `upload-${Date.now()}-${index}`
 
+                  let preview: string | undefined
+                  if (type === 'video') {
+                    preview = await generateVideoThumbnail(file)
+                  } else if (type === 'audio') {
+                    preview = await generateAudioWaveform(file)
+                  } else if (type === 'image') {
+                    preview = await new Promise<string>((resolve) => {
+                      const reader = new FileReader()
+                      reader.onload = () => resolve(reader.result as string)
+                      reader.readAsDataURL(file)
+                    })
+                  }
+
                   const item: ElementLibraryItem = {
                     id,
                     name: file.name,
                     type: type as ElementLibraryItemType,
                     category: type === 'audio' ? 'audio' : 'media',
+                    preview,
                   }
                   mappedItems.push(item)
 
@@ -435,30 +563,23 @@ export function ElementLibraryPanel() {
                   }
                   importAsset(asset)
 
-                  // Auto-add audio and video to timeline immediately after import
                   if (type === 'audio') {
                     setTimeout(() => {
                       const created = addAudioElement({ assetId: id, label: file.name })
-                      if (created) {
-                        setFeedback(`${file.name} añadido a pista de audio`)
-                      }
+                      if (created) setFeedback(`${file.name} añadido a pista de audio`)
                     }, 0)
                   } else if (type === 'image') {
                     setTimeout(() => {
                       const created = addImageElement({ assetId: id, label: file.name })
-                      if (created) {
-                        setFeedback(`${file.name} añadida al timeline`)
-                      }
+                      if (created) setFeedback(`${file.name} añadida al timeline`)
                     }, 0)
                   } else if (type === 'video') {
                     setTimeout(() => {
                       const created = addVideoElement({ assetId: id, label: file.name })
-                      if (created) {
-                        setFeedback(`${file.name} añadido al timeline`)
-                      }
+                      if (created) setFeedback(`${file.name} añadido al timeline`)
                     }, 0)
                   }
-                })
+                }
 
                 if (mappedItems.length) {
                   setUploadedItems((prev) => [...mappedItems, ...prev])

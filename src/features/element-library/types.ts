@@ -15,4 +15,6 @@ export interface ElementLibraryItem {
   description?: string
   textPreset?: TextPreset
   shapePreset?: ShapePreset
+  /** Base64 preview image for imported files */
+  preview?: string
 }
