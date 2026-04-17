@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { createElement, isElementsApiEnabled } from "../../../shared/api/textElementsApi";
 import { useEditorStore } from "../../../shared/store";
 import {
   MEDIA_TRACK_ID,
@@ -87,6 +88,7 @@ function buildVideoElement(
 
 export function useAddVideoElement() {
   const tracks = useEditorStore((state) => state.tracks);
+  const projectId = useEditorStore((state) => state.projectId);
   const assets = useEditorStore((state) => state.assets);
   const currentTime = useEditorStore((state) => state.currentTime);
   const resolution = useEditorStore((state) => state.resolution);
@@ -120,6 +122,30 @@ export function useAddVideoElement() {
         resolution,
         options.startTime ?? currentTime,
       );
+      if (isElementsApiEnabled()) {
+        void createElement(projectId, {
+          id: element.id,
+          type: "video",
+          name: element.name,
+          startTime: element.startTime,
+          duration: element.duration,
+          opacity: element.opacity,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+          rotation: element.rotation,
+          source: element.source,
+          trimStart: element.trimStart,
+          trimEnd: element.trimEnd,
+          playbackRate: element.playbackRate,
+          volume: element.volume,
+          muted: element.muted,
+          trackId: mediaTrack.id,
+        }).catch((error) => {
+          console.error("[ElementLibrary][video] create api failed", error);
+        });
+      }
       addElement(mediaTrack.id, element);
       selectElement(element.id, "element-library");
       console.log("[ElementLibrary][video] created", {
@@ -216,6 +242,7 @@ export function useAddVideoElement() {
     [
       assets,
       tracks,
+      projectId,
       currentTime,
       resolution,
       createTrack,
