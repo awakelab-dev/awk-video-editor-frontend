@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   ChevronDown,
@@ -354,10 +354,6 @@ export function InspectorPanel() {
   const selectedOpacityPercent = selectedElement
     ? opacityToPercent(selectedElement.opacity)
     : 100;
-  const [selectedEffectByElementId, setSelectedEffectByElementId] = useState<
-    Record<string, string>
-  >({});
-
   const updateSelectedProperty = <K extends EditorElementKey>(
     property: K,
     value: EditorElementValue<K>,
