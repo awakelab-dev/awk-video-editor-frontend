@@ -35,6 +35,7 @@ export type ProjectSnapshotPayload = {
 }
 
 type ApiErrorResponse = {
+  message?: string
   error?: {
     code?: string
     message?: string
@@ -92,15 +93,15 @@ function getSnapshotPathTemplate(): string {
 function getSnapshotMethod(): 'POST' | 'PUT' | 'PATCH' {
   const value = import.meta.env.VITE_API_PROJECT_SNAPSHOT_METHOD
   if (typeof value !== 'string') {
-    return 'POST'
+    return 'PUT'
   }
 
   const normalized = value.trim().toUpperCase()
-  if (normalized === 'PUT' || normalized === 'PATCH') {
+  if (normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH') {
     return normalized
   }
 
-  return 'POST'
+  return 'PUT'
 }
 
 export function isProjectSnapshotApiEnabled(): boolean {
@@ -153,7 +154,7 @@ export async function saveProjectSnapshot(projectId: string, payload: ProjectSna
 
   if (!response.ok) {
     const body = await parseJsonSafely<ApiErrorResponse>(response)
-    throw new ProjectSnapshotApiError(body?.error?.message ?? `La API respondió ${response.status}.`, {
+    throw new ProjectSnapshotApiError(body?.error?.message ?? body?.message ?? `La API respondió ${response.status}.`, {
       code: body?.error?.code,
       details: body?.error?.details ?? [],
       requestId: body?.meta?.requestId,
