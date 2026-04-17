@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { ChevronDown, Image as ImageIcon, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Video as VideoIcon, Volume2 } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
@@ -311,6 +311,7 @@ export function InspectorPanel() {
     : ''
 
   const selectedOpacityPercent = selectedElement ? opacityToPercent(selectedElement.opacity) : 100
+  const [selectedEffectByElementId, setSelectedEffectByElementId] = useState<Record<string, string>>({})
 
   const updateSelectedProperty = <K extends EditorElementKey>(property: K, value: EditorElementValue<K>) => {
     if (!selectedElementContext) {
@@ -322,6 +323,35 @@ export function InspectorPanel() {
       selectedElementContext.element.id,
       property,
       value,
+    )
+  }
+
+  const renderEffectsSelector = (elementId: string) => {
+    const currentEffect = selectedEffectByElementId[elementId] ?? 'Ninguno'
+
+    return (
+      <PropertyRow label="Efectos">
+        <div className="relative w-full">
+          <select
+            aria-label="Efectos"
+            className={`${inputClassName} w-full appearance-none pr-8`}
+            onChange={(event) =>
+              setSelectedEffectByElementId((prevState) => ({
+                ...prevState,
+                [elementId]: event.target.value,
+              }))
+            }
+            value={currentEffect}
+          >
+            <option value="Ninguno">Ninguno</option>
+            <option value="Rebote">Rebote</option>
+            <option value="Cortinilla">Cortinilla</option>
+            <option value="Estrella">Estrella</option>
+            <option value="Cerrado">Cerrado</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7f8695]" />
+        </div>
+      </PropertyRow>
     )
   }
 
@@ -454,6 +484,8 @@ export function InspectorPanel() {
               </span>
             </PropertyRow>
 
+            {renderEffectsSelector(selectedTextElement.id)}
+
             <div className="pt-1">
               <label
                 className="mb-1.5 block text-[11px] text-[#6b7280]"
@@ -580,6 +612,8 @@ export function InspectorPanel() {
                 {selectedOpacityPercent}%
               </span>
             </PropertyRow>
+
+            {renderEffectsSelector(selectedImageElement.id)}
           </PropertySection>
         ) : selectedVideoElement ? (
           <PropertySection icon={<VideoIcon className="h-[15px] w-[15px]" />} title="Video">
@@ -709,6 +743,8 @@ export function InspectorPanel() {
                 {selectedOpacityPercent}%
               </span>
             </PropertyRow>
+
+            {renderEffectsSelector(selectedVideoElement.id)}
           </PropertySection>
         ) : selectedAudioElement ? (
           <PropertySection icon={<Volume2 className="h-[15px] w-[15px]" />} title="Audio">
@@ -887,6 +923,8 @@ export function InspectorPanel() {
                 {selectedOpacityPercent}%
               </span>
             </PropertyRow>
+
+            {renderEffectsSelector(selectedShapeElement.id)}
 
             <div className="mt-2 rounded-[6px] border border-[#2a2a34] bg-[#202028] p-2.5">
               <div className="mb-2 flex items-center justify-between">
