@@ -30,6 +30,8 @@ export type ImageElement = VisualElementBase & {
   type: 'image'
   source: string
   fit: 'cover' | 'contain' | 'fill'
+  borderWidth: number
+  borderColor: string
 }
 
 export type AudioElement = TimedElementBase & {

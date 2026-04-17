@@ -8,7 +8,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   CSSProperties,
   DragEvent,
@@ -141,6 +141,23 @@ function readDraggedElement(
   }
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return target.closest('[contenteditable="true"]') !== null;
+}
+
 export function TimelinePanel() {
   const tracks = useEditorStore((state) => state.tracks);
   const selectedElementId = useEditorStore((state) => state.selectedElementId);
@@ -157,6 +174,9 @@ export function TimelinePanel() {
   const seek = useEditorStore((state) => state.seek);
   const pause = useEditorStore((state) => state.pause);
   const play = useEditorStore((state) => state.play);
+  const removeSelectedElement = useEditorStore(
+    (state) => state.removeSelectedElement,
+  );
   const [draggedElement, setDraggedElement] =
     useState<DraggedTimelineElement | null>(null);
   const [dropPreview, setDropPreview] = useState<{
@@ -189,6 +209,29 @@ export function TimelinePanel() {
     100,
     Math.max(0, ((zoomLevel - 50) / 350) * 100),
   );
+  const canDeleteSelection = selectedElementId !== null;
+
+  useEffect(() => {
+    const handleDeleteShortcut = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (!canDeleteSelection || isTypingTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      removeSelectedElement();
+    };
+
+    window.addEventListener("keydown", handleDeleteShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleDeleteShortcut);
+    };
+  }, [canDeleteSelection, removeSelectedElement]);
 
   const handleClipDragStart = (
     event: DragEvent<HTMLDivElement>,
@@ -543,7 +586,9 @@ export function TimelinePanel() {
           </button>
           <button
             aria-label="Eliminar selección"
-            className="flex h-7 w-7 items-center justify-center rounded-[4px] text-[#6b7280] transition hover:bg-[#25252e] hover:text-[#f0f0f4]"
+            className={`flex h-7 w-7 items-center justify-center rounded-[4px] text-[#6b7280] transition ${canDeleteSelection ? "hover:bg-[#25252e] hover:text-[#f0f0f4]" : "cursor-not-allowed opacity-40"}`}
+            disabled={!canDeleteSelection}
+            onClick={removeSelectedElement}
             type="button"
           >
             <Trash2 className="h-4 w-4" />

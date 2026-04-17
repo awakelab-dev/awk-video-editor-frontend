@@ -11,17 +11,27 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useEditorStore } from "../store";
 
 type ToolbarIconButtonProps = {
   ariaLabel: string;
   children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
 };
 
-function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
+function ToolbarIconButton({
+  ariaLabel,
+  children,
+  disabled = false,
+  onClick,
+}: ToolbarIconButtonProps) {
   return (
     <button
       aria-label={ariaLabel}
-      className="flex h-8 w-8 items-center justify-center rounded-[4px] text-[#9ca3af] transition hover:bg-[#2e2e38] hover:text-[#f0f0f4]"
+      className={`flex h-8 w-8 items-center justify-center rounded-[4px] text-[#9ca3af] transition ${disabled ? "cursor-not-allowed opacity-40" : "hover:bg-[#2e2e38] hover:text-[#f0f0f4]"}`}
+      disabled={disabled}
+      onClick={onClick}
       type="button"
     >
       {children}
@@ -30,6 +40,12 @@ function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
 }
 
 export function AppToolbar() {
+  const selectedElementId = useEditorStore((state) => state.selectedElementId);
+  const removeSelectedElement = useEditorStore(
+    (state) => state.removeSelectedElement,
+  );
+  const canDeleteSelection = selectedElementId !== null;
+
   return (
     <header className="flex h-[52px] items-center justify-between gap-4 border-b border-[#2a2a34] bg-[#16161a] px-4">
       <div className="flex items-center gap-5">
@@ -67,7 +83,11 @@ export function AppToolbar() {
         <ToolbarIconButton ariaLabel="Copiar">
           <Copy className="h-4 w-4" />
         </ToolbarIconButton>
-        <ToolbarIconButton ariaLabel="Eliminar">
+        <ToolbarIconButton
+          ariaLabel="Eliminar"
+          disabled={!canDeleteSelection}
+          onClick={removeSelectedElement}
+        >
           <Trash2 className="h-4 w-4" />
         </ToolbarIconButton>
         <span className="mx-1 h-5 w-px bg-[#2a2a34]" />

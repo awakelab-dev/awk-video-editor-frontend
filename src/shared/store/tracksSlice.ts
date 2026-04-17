@@ -105,6 +105,16 @@ function resolveStartTimeAfterConflicts(
   }
 }
 
+function findTrackIdByElementId(tracks: Track[], elementId: string): string | null {
+  for (const track of tracks) {
+    if (track.elements.some((element) => element.id === elementId)) {
+      return track.id
+    }
+  }
+
+  return null
+}
+
 export type TracksSlice = {
   tracks: Track[]
   createTrack: (track: Track) => void
@@ -117,6 +127,7 @@ export type TracksSlice = {
   ) => void
   reorderTracks: (fromIndex: number, toIndex: number) => void
   removeElement: (trackId: string, elementId: string) => void
+  removeSelectedElement: () => void
   removeTrack: (trackId: string) => void
   updateElementProperty: (
     trackId: string,
@@ -251,6 +262,34 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
           : track,
       ),
     })),
+  removeSelectedElement: () =>
+    set((state) => {
+      const selectedElementId = state.selectedElementId
+      if (!selectedElementId) {
+        return {}
+      }
+
+      const selectedTrackId = findTrackIdByElementId(state.tracks, selectedElementId)
+      if (!selectedTrackId) {
+        return {
+          selectedElementId: null,
+          selectionSource: null,
+        }
+      }
+
+      return {
+        tracks: state.tracks.map((track) =>
+          track.id === selectedTrackId
+            ? {
+                ...track,
+                elements: track.elements.filter((element) => element.id !== selectedElementId),
+              }
+            : track,
+        ),
+        selectedElementId: null,
+        selectionSource: null,
+      }
+    }),
   removeTrack: (trackId) =>
     set((state) => {
       if (isProtectedTrack(trackId)) {

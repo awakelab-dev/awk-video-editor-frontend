@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import type { AudioElement, EditorElement, ImageElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 import { usePlaybackEngine } from '../hooks/usePlaybackEngine'
-import { clamp, formatTimecode, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
+import { clamp, formatTimecode, getMaxTrackEnd, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
 
 type ActiveVisualContext = {
   trackId: string
@@ -124,6 +124,14 @@ function getAudioFadeGain(element: AudioElement, currentTime: number): number {
   return clamp(Math.min(fadeInGain, fadeOutGain), 0, 1)
 }
 
+function getVideoTrimBounds(element: VideoElement): { trimStart: number; trimEnd: number; playableDuration: number } {
+  const trimStart = Math.max(0, element.trimStart)
+  const trimEnd = Math.max(trimStart, element.trimEnd)
+  const playableDuration = Math.max(0.001, trimEnd - trimStart)
+
+  return { trimStart, trimEnd, playableDuration }
+}
+
 export function PlaybackWorkspace() {
   usePlaybackEngine()
 
@@ -148,6 +156,7 @@ export function PlaybackWorkspace() {
   const lastNonZeroVolumeRef = useRef(1)
 
   const playbackDuration = useMemo(() => getPlaybackDuration(projectDuration, tracks), [projectDuration, tracks])
+  const timelineEndTime = useMemo(() => getMaxTrackEnd(tracks), [tracks])
 
   useEffect(() => {
     if (!previewRef.current) {
@@ -186,6 +195,14 @@ export function PlaybackWorkspace() {
           return
         }
 
+        if (element.type === 'video') {
+          const clipLocalTime = Math.max(0, currentTime - element.startTime)
+          const { playableDuration } = getVideoTrimBounds(element)
+          if (clipLocalTime >= playableDuration) {
+            return
+          }
+        }
+
         if (isElementActiveAtTime(element, currentTime)) {
           visible.push({ trackId: track.id, trackIndex, element })
         }
@@ -204,7 +221,15 @@ export function PlaybackWorkspace() {
   const activeVideoElements = useMemo<VideoElement[]>(() => {
     return tracks
       .flatMap((track) => track.elements)
-      .filter((element): element is VideoElement => element.type === 'video' && isElementActiveAtTime(element, currentTime))
+      .filter((element): element is VideoElement => {
+        if (element.type !== 'video') {
+          return false
+        }
+
+        const clipLocalTime = Math.max(0, currentTime - element.startTime)
+        const { playableDuration } = getVideoTrimBounds(element)
+        return clipLocalTime < playableDuration
+      })
   }, [currentTime, tracks])
 
   useEffect(() => {
@@ -271,11 +296,15 @@ export function PlaybackWorkspace() {
         continue
       }
 
+      const { trimStart, trimEnd } = getVideoTrimBounds(element)
+
       video.playbackRate = element.playbackRate
       video.muted = element.muted || masterVolume <= 0
       video.volume = clamp(element.volume * masterVolume, 0, 1)
 
-      const targetTime = Math.max(0, currentTime - element.startTime + element.trimStart)
+      const clipLocalTime = Math.max(0, currentTime - element.startTime)
+      const unclampedTime = trimStart + clipLocalTime
+      const targetTime = clamp(unclampedTime, trimStart, trimEnd)
       if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.15) {
         try {
           video.currentTime = targetTime
@@ -353,11 +382,11 @@ export function PlaybackWorkspace() {
   }
 
   const handleSkipBackward = () => {
-    seek(clamp(currentTime - 1, 0, playbackDuration))
+    seek(0)
   }
 
   const handleSkipForward = () => {
-    seek(clamp(currentTime + 1, 0, playbackDuration))
+    seek(timelineEndTime)
   }
 
   const handlePlayPause = () => {
@@ -418,20 +447,30 @@ export function PlaybackWorkspace() {
               }
 
               if (context.element.type === 'image') {
+                const imageStyle: CSSProperties = {
+                  ...style,
+                  overflow: 'visible',
+                  outline: `${Math.max(0, context.element.borderWidth)}px solid ${context.element.borderColor}`,
+                  outlineOffset: '0px',
+                }
+
                 return (
                   <div
                     className={`select-none overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-move'} ${isSelected ? 'ring-1 ring-white/60' : ''}`}
                     data-testid="playback-image-overlay"
                     key={context.element.id}
                     onMouseDown={(event) => handleVisualMouseDown(event, context)}
-                    style={style}
+                    style={imageStyle}
                   >
                     <img
                       alt={context.element.name}
                       className="h-full w-full"
                       draggable={false}
                       src={context.element.source}
-                      style={{ objectFit: context.element.fit }}
+                      style={{
+                        objectFit: context.element.fit,
+                        borderRadius: 'inherit',
+                      }}
                     />
                   </div>
                 )

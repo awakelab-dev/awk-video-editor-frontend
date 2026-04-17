@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaybackWorkspace } from './PlaybackWorkspace'
 import { useEditorStore } from '../../../shared/store'
-import type { AudioElement, ShapeElement, TextElement } from '../../../shared/types/editor'
+import type { AudioElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 
 class ResizeObserverMock {
   observe() {}
@@ -73,6 +73,28 @@ function buildAudioElement(): AudioElement {
   }
 }
 
+function buildVideoElement(): VideoElement {
+  return {
+    id: 'video-1',
+    type: 'video',
+    name: 'Video principal',
+    startTime: 0,
+    duration: 10,
+    opacity: 1,
+    x: 100,
+    y: 80,
+    width: 320,
+    height: 180,
+    rotation: 0,
+    source: '/video.mp4',
+    trimStart: 2,
+    trimEnd: 6,
+    playbackRate: 1,
+    volume: 1,
+    muted: false,
+  }
+}
+
 describe('PlaybackWorkspace', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
@@ -129,6 +151,48 @@ describe('PlaybackWorkspace', () => {
       expect(text.x).toBe(-60)
       expect(text.y).toBe(-20)
     }
+  })
+
+  it('el boton Retroceder lleva el playhead al inicio del timeline', () => {
+    useEditorStore.setState({
+      currentTime: 7,
+    })
+
+    render(<PlaybackWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retroceder' }))
+
+    expect(useEditorStore.getState().currentTime).toBe(0)
+  })
+
+  it('el boton Avanzar lleva el playhead al final del ultimo elemento entre todas las tracks', () => {
+    const secondText = buildTextElement()
+    secondText.id = 'text-2'
+    secondText.startTime = 12
+    secondText.duration = 8
+
+    useEditorStore.setState({
+      currentTime: 0,
+      duration: 150,
+      tracks: [
+        {
+          id: 'track-1',
+          name: 'Texto 1',
+          elements: [buildTextElement()],
+        },
+        {
+          id: 'track-2',
+          name: 'Texto 2',
+          elements: [secondText],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Avanzar' }))
+
+    expect(useEditorStore.getState().currentTime).toBe(20)
   })
 
   it('permite arrastrar formas en el renderer y actualiza su posicion', () => {
@@ -319,6 +383,24 @@ describe('PlaybackWorkspace', () => {
     useEditorStore.setState({ currentTime: 8.5 })
 
     expect(audioInstances[0]?.volume).toBeCloseTo(0.5, 3)
+  })
+
+  it('respeta trim in y trim out de video en la ventana activa', () => {
+    useEditorStore.setState({
+      currentTime: 5,
+      isPlaying: false,
+      tracks: [
+        {
+          id: 'track-video',
+          name: 'Video',
+          elements: [buildVideoElement()],
+        },
+      ],
+    })
+
+    render(<PlaybackWorkspace />)
+
+    expect(screen.queryAllByTestId('playback-video-overlay')).toHaveLength(0)
   })
 })
 

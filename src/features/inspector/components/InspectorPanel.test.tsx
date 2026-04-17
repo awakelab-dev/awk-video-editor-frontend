@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { InspectorPanel } from './InspectorPanel'
 import { useEditorStore } from '../../../shared/store'
-import type { AudioElement, ShapeElement, TextElement } from '../../../shared/types/editor'
+import type { AudioElement, ImageElement, ShapeElement, TextElement, VideoElement } from '../../../shared/types/editor'
 
 function normalizeOpacity(opacity: number) {
   return opacity <= 1 ? opacity : opacity / 100
@@ -157,6 +157,48 @@ function buildAudioElement(): AudioElement {
   }
 }
 
+function buildImageElement(): ImageElement {
+  return {
+    borderColor: '#ffffff',
+    borderWidth: 0,
+    duration: 10,
+    fit: 'cover',
+    height: 180,
+    id: 'image-1',
+    name: 'Imagen principal',
+    opacity: 1,
+    rotation: 0,
+    source: '/image.jpg',
+    startTime: 0,
+    type: 'image',
+    width: 320,
+    x: 120,
+    y: 90,
+  }
+}
+
+function buildVideoElement(): VideoElement {
+  return {
+    duration: 20,
+    height: 200,
+    id: 'video-1',
+    muted: false,
+    name: 'Video principal',
+    opacity: 1,
+    playbackRate: 1,
+    rotation: 0,
+    source: '/video.mp4',
+    startTime: 0,
+    trimEnd: 0,
+    trimStart: 0,
+    type: 'video',
+    volume: 0.6,
+    width: 360,
+    x: 80,
+    y: 70,
+  }
+}
+
 describe('InspectorPanel', () => {
   afterEach(() => {
     cleanup()
@@ -305,6 +347,68 @@ describe('InspectorPanel', () => {
       expect(updatedAudio.volume).toBeCloseTo(0.8, 3)
       expect(updatedAudio.fadeIn).toBeCloseTo(1.5, 3)
       expect(updatedAudio.fadeOut).toBeCloseTo(2.5, 3)
+    }
+  })
+
+  it('muestra y actualiza propiedades de imagen', () => {
+    const imageElement = buildImageElement()
+
+    useEditorStore.setState({
+      selectedElementId: imageElement.id,
+      selectionSource: 'canvas',
+      tracks: [
+        {
+          elements: [imageElement],
+          id: 'track-image',
+          name: 'Imagenes',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    expect(screen.getByText('Imagen')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Grosor borde imagen'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Codigo color borde imagen'), { target: { value: '#ff8800' } })
+    fireEvent.change(screen.getByLabelText('Rotacion imagen'), { target: { value: '25' } })
+
+    const updatedImage = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedImage?.type).toBe('image')
+    if (updatedImage?.type === 'image') {
+      expect(updatedImage.borderWidth).toBe(6)
+      expect(updatedImage.borderColor).toBe('#ff8800')
+      expect(updatedImage.rotation).toBe(25)
+    }
+  })
+
+  it('muestra y actualiza propiedades de video', () => {
+    const videoElement = buildVideoElement()
+
+    useEditorStore.setState({
+      selectedElementId: videoElement.id,
+      selectionSource: 'canvas',
+      tracks: [
+        {
+          elements: [videoElement],
+          id: 'track-video',
+          name: 'Videos',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    expect(screen.getByText('Video')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Velocidad video'), { target: { value: '1.5' } })
+    fireEvent.change(screen.getByLabelText('Volumen video'), { target: { value: '30' } })
+    fireEvent.change(screen.getByLabelText('Rotacion video'), { target: { value: '40' } })
+
+    const updatedVideo = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedVideo?.type).toBe('video')
+    if (updatedVideo?.type === 'video') {
+      expect(updatedVideo.playbackRate).toBeCloseTo(1.5, 3)
+      expect(updatedVideo.volume).toBeCloseTo(0.3, 3)
+      expect(updatedVideo.rotation).toBe(40)
     }
   })
 
