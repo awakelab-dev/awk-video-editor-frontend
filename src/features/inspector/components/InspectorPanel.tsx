@@ -1,40 +1,58 @@
-import { useEffect, useMemo, useRef } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
-import { ChevronDown, Image as ImageIcon, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Video as VideoIcon, Volume2 } from 'lucide-react'
-import { useEditorStore } from '../../../shared/store'
-import { EFFECT_PRESETS } from '../../../shared/types/editor'
-import type { EditorElement, EditorEffect } from '../../../shared/types/editor'
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import {
+  ChevronDown,
+  Image as ImageIcon,
+  Minus,
+  Plus,
+  RotateCw,
+  SlidersHorizontal,
+  Square,
+  Type,
+  Video as VideoIcon,
+  Volume2,
+} from "lucide-react";
+import { useEditorStore } from "../../../shared/store";
+import { EFFECT_PRESETS } from "../../../shared/types/editor";
+import type { EditorElement, EditorEffect } from "../../../shared/types/editor";
 
-type KeysOfUnion<T> = T extends T ? keyof T : never
-type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
-type EditorElementKey = KeysOfUnion<EditorElement>
-type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<EditorElement, K>
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+type ValueOfUnion<T, K extends PropertyKey> = T extends T
+  ? K extends keyof T
+    ? T[K]
+    : never
+  : never;
+type EditorElementKey = KeysOfUnion<EditorElement>;
+type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<
+  EditorElement,
+  K
+>;
 
 type SectionProps = {
-  title: string
-  icon: ReactNode
-  children: ReactNode
-}
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+};
 
 type PropertyRowProps = {
-  label: string
-  children: ReactNode
-}
+  label: string;
+  children: ReactNode;
+};
 
 type SelectedElementContext = {
-  trackId: string
-  element: EditorElement
-}
+  trackId: string;
+  element: EditorElement;
+};
 
 type NumericFieldProps = {
-  ariaLabel: string
-  max?: number
-  min?: number
-  onValueChange: (value: number) => void
-  step?: number
-  value: number
-  widthClassName?: string
-}
+  ariaLabel: string;
+  max?: number;
+  min?: number;
+  onValueChange: (value: number) => void;
+  step?: number;
+  value: number;
+  widthClassName?: string;
+};
 
 function PropertySection({ title, icon, children }: SectionProps) {
   return (
@@ -50,7 +68,7 @@ function PropertySection({ title, icon, children }: SectionProps) {
       </button>
       <div className="space-y-1.5 px-3.5 pb-3.5 pt-1.5">{children}</div>
     </section>
-  )
+  );
 }
 
 function PropertyRow({ label, children }: PropertyRowProps) {
@@ -59,125 +77,135 @@ function PropertyRow({ label, children }: PropertyRowProps) {
       <label className="min-w-16 whitespace-nowrap text-[11px] text-[#6b7280] max-[1024px]:min-w-[52px] max-[1024px]:text-[10px]">
         {label}
       </label>
-      <div className="flex flex-1 items-center justify-end gap-1.5">{children}</div>
+      <div className="flex flex-1 items-center justify-end gap-1.5">
+        {children}
+      </div>
     </div>
-  )
+  );
 }
 
 const inputClassName =
-  'h-7 rounded-[4px] border border-[#2a2a34] bg-[#25252e] px-2 text-xs text-[#f0f0f4] outline-none transition focus:border-[#6366f1]'
-const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`
+  "h-7 rounded-[4px] border border-[#2a2a34] bg-[#25252e] px-2 text-xs text-[#f0f0f4] outline-none transition focus:border-[#6366f1]";
+const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 const stepperButtonClassName =
-  'flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]'
-const inspectorEffectOptions: Array<{ label: string; value: EditorEffect }> = EFFECT_PRESETS.map((preset) => ({
-  label: preset.charAt(0).toUpperCase() + preset.slice(1),
-  value: preset,
-}))
+  "flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]";
+const inspectorEffectOptions: Array<{ label: string; value: EditorEffect }> =
+  EFFECT_PRESETS.map((preset) => ({
+    label: preset.charAt(0).toUpperCase() + preset.slice(1),
+    value: preset,
+  }));
 const textFontOptions = [
-  { label: 'Arial', value: 'Arial, sans-serif' },
-  { label: 'Verdana', value: 'Verdana, sans-serif' },
-  { label: 'Tahoma', value: 'Tahoma, sans-serif' },
-  { label: 'Trebuchet MS', value: "'Trebuchet MS', sans-serif" },
-  { label: 'Georgia', value: 'Georgia, serif' },
-  { label: 'Times New Roman', value: "'Times New Roman', serif" },
-  { label: 'Courier New', value: "'Courier New', monospace" },
-  { label: 'Impact', value: 'Impact, sans-serif' },
-]
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Tahoma", value: "Tahoma, sans-serif" },
+  { label: "Trebuchet MS", value: "'Trebuchet MS', sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times New Roman", value: "'Times New Roman', serif" },
+  { label: "Courier New", value: "'Courier New', monospace" },
+  { label: "Impact", value: "Impact, sans-serif" },
+];
 
 function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
+  return Math.min(max, Math.max(min, value));
 }
 
 function opacityToPercent(opacity: number) {
-  const safeOpacity = Number.isFinite(opacity) ? opacity : 1
+  const safeOpacity = Number.isFinite(opacity) ? opacity : 1;
   return safeOpacity <= 1
     ? Math.round(clamp(safeOpacity, 0, 1) * 100)
-    : Math.round(clamp(safeOpacity, 0, 100))
+    : Math.round(clamp(safeOpacity, 0, 100));
 }
 
 function volumeToPercent(volume: number) {
-  const safeVolume = Number.isFinite(volume) ? volume : 1
-  return Math.round(clamp(safeVolume, 0, 1) * 100)
+  const safeVolume = Number.isFinite(volume) ? volume : 1;
+  return Math.round(clamp(safeVolume, 0, 1) * 100);
 }
 
 function findSelectedElementContext(
   selectedElementId: string | null,
-  tracks: ReturnType<typeof useEditorStore.getState>['tracks'],
+  tracks: ReturnType<typeof useEditorStore.getState>["tracks"],
 ): SelectedElementContext | null {
   if (!selectedElementId) {
-    return null
+    return null;
   }
 
   for (const track of tracks) {
-    const element = track.elements.find((trackElement) => trackElement.id === selectedElementId)
+    const element = track.elements.find(
+      (trackElement) => trackElement.id === selectedElementId,
+    );
 
     if (element) {
       return {
         trackId: track.id,
         element,
-      }
+      };
     }
   }
 
-  return null
+  return null;
 }
 
-function buildShapePreviewStyle(shape: Extract<EditorElement, { type: 'shape' }>): CSSProperties {
-  const sourceWidth = Math.max(1, shape.width)
-  const sourceHeight = Math.max(1, shape.height)
-  const maxPreviewSize = 74
-  const scale = Math.min(maxPreviewSize / sourceWidth, maxPreviewSize / sourceHeight)
-  const previewWidth = Math.max(14, Math.round(sourceWidth * scale))
-  const previewHeight = Math.max(14, Math.round(sourceHeight * scale))
+function buildShapePreviewStyle(
+  shape: Extract<EditorElement, { type: "shape" }>,
+): CSSProperties {
+  const sourceWidth = Math.max(1, shape.width);
+  const sourceHeight = Math.max(1, shape.height);
+  const maxPreviewSize = 74;
+  const scale = Math.min(
+    maxPreviewSize / sourceWidth,
+    maxPreviewSize / sourceHeight,
+  );
+  const previewWidth = Math.max(14, Math.round(sourceWidth * scale));
+  const previewHeight = Math.max(14, Math.round(sourceHeight * scale));
 
   const baseStyle: CSSProperties = {
     width: `${previewWidth}px`,
     height: `${previewHeight}px`,
     backgroundColor: shape.fillColor,
     outline: `${Math.max(0, shape.strokeWidth)}px solid ${shape.strokeColor}`,
-    outlineOffset: '0px',
+    outlineOffset: "0px",
     transform: `rotate(${shape.rotation}deg)`,
-    transformOrigin: 'center center',
-    transition: 'transform 120ms ease-out',
-  }
+    transformOrigin: "center center",
+    transition: "transform 120ms ease-out",
+  };
 
-  if (shape.shapeType === 'ellipse') {
+  if (shape.shapeType === "ellipse") {
     return {
       ...baseStyle,
-      borderRadius: '9999px',
-    }
+      borderRadius: "9999px",
+    };
   }
 
-  if (shape.shapeType === 'triangle') {
+  if (shape.shapeType === "triangle") {
     return {
       ...baseStyle,
-      clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
-    }
+      clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+    };
   }
 
-  if (shape.shapeType === 'polygon') {
+  if (shape.shapeType === "polygon") {
     return {
       ...baseStyle,
-      clipPath: 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)',
-    }
+      clipPath: "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)",
+    };
   }
 
-  if (shape.shapeType === 'line') {
+  if (shape.shapeType === "line") {
     return {
       width: `${previewWidth}px`,
       height: `${Math.max(2, Math.round(Math.max(1, shape.strokeWidth)))}px`,
       backgroundColor: shape.strokeColor,
-      borderRadius: '9999px',
+      borderRadius: "9999px",
       transform: `rotate(${shape.rotation}deg)`,
-      transformOrigin: 'center center',
-      transition: 'transform 120ms ease-out',
-    }
+      transformOrigin: "center center",
+      transition: "transform 120ms ease-out",
+    };
   }
 
   return {
     ...baseStyle,
     borderRadius: `${Math.max(0, shape.cornerRadius)}px`,
-  }
+  };
 }
 
 function NumericField({
@@ -187,61 +215,61 @@ function NumericField({
   onValueChange,
   step = 1,
   value,
-  widthClassName = 'w-[72px]',
+  widthClassName = "w-[72px]",
 }: NumericFieldProps) {
-  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const valueRef = useRef(value)
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const valueRef = useRef(value);
 
   useEffect(() => {
-    valueRef.current = value
-  }, [value])
+    valueRef.current = value;
+  }, [value]);
 
   const sanitizeValue = (nextValue: number) => {
-    let safeValue = nextValue
-    if (typeof min === 'number') {
-      safeValue = Math.max(min, safeValue)
+    let safeValue = nextValue;
+    if (typeof min === "number") {
+      safeValue = Math.max(min, safeValue);
     }
-    if (typeof max === 'number') {
-      safeValue = Math.min(max, safeValue)
+    if (typeof max === "number") {
+      safeValue = Math.min(max, safeValue);
     }
-    return safeValue
-  }
+    return safeValue;
+  };
 
   const applyValue = (nextValue: number) => {
     if (!Number.isFinite(nextValue)) {
-      return
+      return;
     }
 
-    const safeValue = sanitizeValue(nextValue)
-    valueRef.current = safeValue
+    const safeValue = sanitizeValue(nextValue);
+    valueRef.current = safeValue;
 
-    onValueChange(safeValue)
-  }
+    onValueChange(safeValue);
+  };
 
   const clearHoldTimers = () => {
     if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current)
-      holdTimeoutRef.current = null
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
     }
     if (holdIntervalRef.current) {
-      clearInterval(holdIntervalRef.current)
-      holdIntervalRef.current = null
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
     }
-  }
+  };
 
   const startHold = (direction: 1 | -1) => {
-    applyValue(valueRef.current + direction * step)
-    clearHoldTimers()
+    applyValue(valueRef.current + direction * step);
+    clearHoldTimers();
 
     holdTimeoutRef.current = setTimeout(() => {
       holdIntervalRef.current = setInterval(() => {
-        applyValue(valueRef.current + direction * step)
-      }, 70)
-    }, 300)
-  }
+        applyValue(valueRef.current + direction * step);
+      }, 70);
+    }, 300);
+  };
 
-  useEffect(() => clearHoldTimers, [])
+  useEffect(() => clearHoldTimers, []);
 
   return (
     <div className="flex items-center gap-1">
@@ -278,48 +306,64 @@ function NumericField({
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 export function InspectorPanel() {
-  const selectedElementId = useEditorStore((state) => state.selectedElementId)
-  const tracks = useEditorStore((state) => state.tracks)
-  const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
+  const selectedElementId = useEditorStore((state) => state.selectedElementId);
+  const tracks = useEditorStore((state) => state.tracks);
+  const updateElementProperty = useEditorStore(
+    (state) => state.updateElementProperty,
+  );
 
   const selectedElementContext = useMemo(
     () => findSelectedElementContext(selectedElementId, tracks),
     [selectedElementId, tracks],
-  )
+  );
 
-  const selectedElement = selectedElementContext?.element ?? null
-  const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null
-  const selectedImageElement = selectedElement?.type === 'image' ? selectedElement : null
-  const selectedVideoElement = selectedElement?.type === 'video' ? selectedElement : null
-  const selectedAudioElement = selectedElement?.type === 'audio' ? selectedElement : null
-  const selectedShapeElement = selectedElement?.type === 'shape' ? selectedElement : null
+  const selectedElement = selectedElementContext?.element ?? null;
+  const selectedTextElement =
+    selectedElement?.type === "text" ? selectedElement : null;
+  const selectedImageElement =
+    selectedElement?.type === "image" ? selectedElement : null;
+  const selectedVideoElement =
+    selectedElement?.type === "video" ? selectedElement : null;
+  const selectedAudioElement =
+    selectedElement?.type === "audio" ? selectedElement : null;
+  const selectedShapeElement =
+    selectedElement?.type === "shape" ? selectedElement : null;
   const isSquareElement =
-    selectedShapeElement?.shapeType === 'rectangle'
-      ? Math.abs(selectedShapeElement.width - selectedShapeElement.height) < 0.001
-      : false
+    selectedShapeElement?.shapeType === "rectangle"
+      ? Math.abs(selectedShapeElement.width - selectedShapeElement.height) <
+        0.001
+      : false;
   const shapePanelTitle = selectedShapeElement
-    ? selectedShapeElement.shapeType === 'rectangle'
+    ? selectedShapeElement.shapeType === "rectangle"
       ? isSquareElement
-        ? 'Cuadrado'
-        : 'Rectángulo'
-      : selectedShapeElement.shapeType === 'ellipse'
-        ? 'Círculo'
-        : selectedShapeElement.shapeType === 'line'
-          ? 'Línea'
-          : selectedShapeElement.shapeType === 'triangle'
-            ? 'Triángulo'
-            : 'Polígono'
-    : ''
+        ? "Cuadrado"
+        : "Rectángulo"
+      : selectedShapeElement.shapeType === "ellipse"
+        ? "Círculo"
+        : selectedShapeElement.shapeType === "line"
+          ? "Línea"
+          : selectedShapeElement.shapeType === "triangle"
+            ? "Triángulo"
+            : "Polígono"
+    : "";
 
-  const selectedOpacityPercent = selectedElement ? opacityToPercent(selectedElement.opacity) : 100
+  const selectedOpacityPercent = selectedElement
+    ? opacityToPercent(selectedElement.opacity)
+    : 100;
+  const [selectedEffectByElementId, setSelectedEffectByElementId] = useState<
+    Record<string, string>
+  >({});
 
-  const updateSelectedProperty = <K extends EditorElementKey>(property: K, value: EditorElementValue<K>) => {
+  const updateSelectedProperty = <K extends EditorElementKey>(
+    property: K,
+    value: EditorElementValue<K>,
+  ) => {
     if (!selectedElementContext) {
-      return
+      return;
     }
 
     updateElementProperty(
@@ -327,15 +371,18 @@ export function InspectorPanel() {
       selectedElementContext.element.id,
       property,
       value,
-    )
-  }
+    );
+  };
 
   const renderEffectsSelector = (elementId: string) => {
-    const selectedEffect = selectedElement?.id === elementId ? selectedElement.effects[0] : undefined
+    const selectedEffect =
+      selectedElement?.id === elementId
+        ? selectedElement.effects[0]
+        : undefined;
     const currentEffect =
       selectedEffect && EFFECT_PRESETS.includes(selectedEffect)
         ? selectedEffect
-        : 'none'
+        : "none";
 
     return (
       <PropertyRow label="Efectos">
@@ -345,8 +392,10 @@ export function InspectorPanel() {
             className={`${inputClassName} w-full appearance-none pr-8`}
             onChange={(event) =>
               updateSelectedProperty(
-                'effects',
-                event.target.value === 'none' ? [] : [event.target.value as EditorEffect],
+                "effects",
+                event.target.value === "none"
+                  ? []
+                  : [event.target.value as EditorEffect],
               )
             }
             value={currentEffect}
@@ -361,8 +410,8 @@ export function InspectorPanel() {
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7f8695]" />
         </div>
       </PropertyRow>
-    )
-  }
+    );
+  };
 
   return (
     <aside className="row-start-1 flex min-h-0 flex-col border-l border-[#2a2a34] bg-[#1a1a20]">
@@ -372,7 +421,7 @@ export function InspectorPanel() {
           Propiedades
         </h2>
         <span className="mt-1 block text-[11px] text-[#6b7280]">
-          {selectedElement ? selectedElement.name : 'Sin elemento seleccionado'}
+          {selectedElement ? selectedElement.name : "Sin elemento seleccionado"}
         </span>
       </header>
 
@@ -382,18 +431,26 @@ export function InspectorPanel() {
             Haz click en un elemento para modificar sus propiedades.
           </div>
         ) : selectedTextElement ? (
-          <PropertySection icon={<Type className="h-[15px] w-[15px]" />} title="Texto">
+          <PropertySection
+            icon={<Type className="h-[15px] w-[15px]" />}
+            title="Texto"
+          >
             <PropertyRow label="Fuente">
               <select
                 aria-label="Fuente"
                 className={`${inputClassName} w-full appearance-none pr-6`}
-                onChange={(event) => updateSelectedProperty('fontFamily', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("fontFamily", event.target.value)
+                }
                 value={selectedTextElement.fontFamily}
               >
                 {!textFontOptions.some(
-                  (fontOption) => fontOption.value === selectedTextElement.fontFamily,
+                  (fontOption) =>
+                    fontOption.value === selectedTextElement.fontFamily,
                 ) && (
-                  <option value={selectedTextElement.fontFamily}>{selectedTextElement.fontFamily}</option>
+                  <option value={selectedTextElement.fontFamily}>
+                    {selectedTextElement.fontFamily}
+                  </option>
                 )}
                 {textFontOptions.map((fontOption) => (
                   <option key={fontOption.value} value={fontOption.value}>
@@ -407,7 +464,9 @@ export function InspectorPanel() {
               <NumericField
                 ariaLabel="Tamaño"
                 min={1}
-                onValueChange={(nextValue) => updateSelectedProperty('fontSize', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("fontSize", nextValue)
+                }
                 step={1}
                 value={selectedTextElement.fontSize}
               />
@@ -418,14 +477,18 @@ export function InspectorPanel() {
               <input
                 aria-label="Color"
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
-                onChange={(event) => updateSelectedProperty('textColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("textColor", event.target.value)
+                }
                 type="color"
                 value={selectedTextElement.textColor}
               />
               <input
                 aria-label="Codigo color"
                 className={`${inputClassName} w-[90px] text-right tabular-nums`}
-                onChange={(event) => updateSelectedProperty('textColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("textColor", event.target.value)
+                }
                 value={selectedTextElement.textColor}
               />
             </PropertyRow>
@@ -433,7 +496,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion X">
               <NumericField
                 ariaLabel="Posicion X"
-                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("x", nextValue)
+                }
                 value={selectedTextElement.x}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -442,7 +507,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion Y">
               <NumericField
                 ariaLabel="Posicion Y"
-                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("y", nextValue)
+                }
                 value={selectedTextElement.y}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -455,11 +522,11 @@ export function InspectorPanel() {
                 max={180}
                 min={-180}
                 onChange={(event) => {
-                  const nextRotation = Number(event.target.value)
+                  const nextRotation = Number(event.target.value);
                   if (!Number.isFinite(nextRotation)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('rotation', nextRotation)
+                  updateSelectedProperty("rotation", nextRotation);
                 }}
                 step={1}
                 type="range"
@@ -477,13 +544,16 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
 
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
 
-                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "opacity",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 type="range"
                 value={selectedOpacityPercent}
@@ -506,24 +576,33 @@ export function InspectorPanel() {
                 id="inspector-text-content"
                 aria-label="Texto"
                 className="min-h-[84px] w-full resize-y rounded-[4px] border border-[#2a2a34] bg-[#25252e] px-2 py-1.5 text-xs text-[#f0f0f4] outline-none transition focus:border-[#6366f1]"
-                onChange={(event) => updateSelectedProperty('text', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("text", event.target.value)
+                }
                 value={selectedTextElement.text}
               />
             </div>
           </PropertySection>
         ) : selectedImageElement ? (
-          <PropertySection icon={<ImageIcon className="h-[15px] w-[15px]" />} title="Imagen">
+          <PropertySection
+            icon={<ImageIcon className="h-[15px] w-[15px]" />}
+            title="Imagen"
+          >
             <PropertyRow label="Tamano">
               <NumericField
                 ariaLabel="Tamano imagen"
                 min={1}
                 onValueChange={(nextSize) => {
-                  const safeSize = clamp(nextSize, 1, 9999)
-                  const currentWidth = Math.max(1, selectedImageElement.width)
-                  const aspectRatio = selectedImageElement.height / currentWidth
-                  const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
-                  updateSelectedProperty('width', safeSize)
-                  updateSelectedProperty('height', nextHeight)
+                  const safeSize = clamp(nextSize, 1, 9999);
+                  const currentWidth = Math.max(1, selectedImageElement.width);
+                  const aspectRatio =
+                    selectedImageElement.height / currentWidth;
+                  const nextHeight = Math.max(
+                    1,
+                    Math.round(safeSize * aspectRatio),
+                  );
+                  updateSelectedProperty("width", safeSize);
+                  updateSelectedProperty("height", nextHeight);
                 }}
                 step={1}
                 value={Math.round(selectedImageElement.width)}
@@ -534,7 +613,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion X">
               <NumericField
                 ariaLabel="Posicion X imagen"
-                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("x", nextValue)
+                }
                 value={selectedImageElement.x}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -543,7 +624,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion Y">
               <NumericField
                 ariaLabel="Posicion Y imagen"
-                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("y", nextValue)
+                }
                 value={selectedImageElement.y}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -554,7 +637,7 @@ export function InspectorPanel() {
                 ariaLabel="Grosor borde imagen"
                 min={0}
                 onValueChange={(nextValue) =>
-                  updateSelectedProperty('borderWidth', Math.max(0, nextValue))
+                  updateSelectedProperty("borderWidth", Math.max(0, nextValue))
                 }
                 step={1}
                 value={selectedImageElement.borderWidth}
@@ -567,14 +650,18 @@ export function InspectorPanel() {
               <input
                 aria-label="Color borde imagen"
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
-                onChange={(event) => updateSelectedProperty('borderColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("borderColor", event.target.value)
+                }
                 type="color"
                 value={selectedImageElement.borderColor}
               />
               <input
                 aria-label="Codigo color borde imagen"
                 className={`${inputClassName} w-[90px] text-right tabular-nums`}
-                onChange={(event) => updateSelectedProperty('borderColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("borderColor", event.target.value)
+                }
                 value={selectedImageElement.borderColor}
               />
             </PropertyRow>
@@ -586,11 +673,11 @@ export function InspectorPanel() {
                 max={180}
                 min={-180}
                 onChange={(event) => {
-                  const nextRotation = Number(event.target.value)
+                  const nextRotation = Number(event.target.value);
                   if (!Number.isFinite(nextRotation)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('rotation', nextRotation)
+                  updateSelectedProperty("rotation", nextRotation);
                 }}
                 step={1}
                 type="range"
@@ -608,11 +695,14 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "opacity",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 type="range"
                 value={selectedOpacityPercent}
@@ -625,18 +715,25 @@ export function InspectorPanel() {
             {renderEffectsSelector(selectedImageElement.id)}
           </PropertySection>
         ) : selectedVideoElement ? (
-          <PropertySection icon={<VideoIcon className="h-[15px] w-[15px]" />} title="Video">
+          <PropertySection
+            icon={<VideoIcon className="h-[15px] w-[15px]" />}
+            title="Video"
+          >
             <PropertyRow label="Tamano">
               <NumericField
                 ariaLabel="Tamano video"
                 min={1}
                 onValueChange={(nextSize) => {
-                  const safeSize = clamp(nextSize, 1, 9999)
-                  const currentWidth = Math.max(1, selectedVideoElement.width)
-                  const aspectRatio = selectedVideoElement.height / currentWidth
-                  const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
-                  updateSelectedProperty('width', safeSize)
-                  updateSelectedProperty('height', nextHeight)
+                  const safeSize = clamp(nextSize, 1, 9999);
+                  const currentWidth = Math.max(1, selectedVideoElement.width);
+                  const aspectRatio =
+                    selectedVideoElement.height / currentWidth;
+                  const nextHeight = Math.max(
+                    1,
+                    Math.round(safeSize * aspectRatio),
+                  );
+                  updateSelectedProperty("width", safeSize);
+                  updateSelectedProperty("height", nextHeight);
                 }}
                 step={1}
                 value={Math.round(selectedVideoElement.width)}
@@ -647,7 +744,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion X">
               <NumericField
                 ariaLabel="Posicion X video"
-                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("x", nextValue)
+                }
                 value={selectedVideoElement.x}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -656,7 +755,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion Y">
               <NumericField
                 ariaLabel="Posicion Y video"
-                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("y", nextValue)
+                }
                 value={selectedVideoElement.y}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -667,7 +768,12 @@ export function InspectorPanel() {
                 ariaLabel="Velocidad video"
                 max={4}
                 min={0.1}
-                onValueChange={(nextValue) => updateSelectedProperty('playbackRate', clamp(nextValue, 0.1, 4))}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty(
+                    "playbackRate",
+                    clamp(nextValue, 0.1, 4),
+                  )
+                }
                 step={0.1}
                 value={Number(selectedVideoElement.playbackRate.toFixed(2))}
               />
@@ -681,11 +787,14 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('volume', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "volume",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 type="range"
                 value={volumeToPercent(selectedVideoElement.volume)}
@@ -700,13 +809,15 @@ export function InspectorPanel() {
                 aria-label="Silencio video"
                 className={`${inputClassName} inline-flex w-[92px] items-center justify-center px-0 text-[11px] font-medium ${
                   selectedVideoElement.muted
-                    ? 'border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]'
-                    : 'text-[#9ca3af]'
+                    ? "border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]"
+                    : "text-[#9ca3af]"
                 }`}
-                onClick={() => updateSelectedProperty('muted', !selectedVideoElement.muted)}
+                onClick={() =>
+                  updateSelectedProperty("muted", !selectedVideoElement.muted)
+                }
                 type="button"
               >
-                {selectedVideoElement.muted ? 'Activado' : 'Desactivado'}
+                {selectedVideoElement.muted ? "Activado" : "Desactivado"}
               </button>
             </PropertyRow>
 
@@ -717,11 +828,11 @@ export function InspectorPanel() {
                 max={180}
                 min={-180}
                 onChange={(event) => {
-                  const nextRotation = Number(event.target.value)
+                  const nextRotation = Number(event.target.value);
                   if (!Number.isFinite(nextRotation)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('rotation', nextRotation)
+                  updateSelectedProperty("rotation", nextRotation);
                 }}
                 step={1}
                 type="range"
@@ -739,11 +850,14 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "opacity",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 type="range"
                 value={selectedOpacityPercent}
@@ -756,7 +870,10 @@ export function InspectorPanel() {
             {renderEffectsSelector(selectedVideoElement.id)}
           </PropertySection>
         ) : selectedAudioElement ? (
-          <PropertySection icon={<Volume2 className="h-[15px] w-[15px]" />} title="Audio">
+          <PropertySection
+            icon={<Volume2 className="h-[15px] w-[15px]" />}
+            title="Audio"
+          >
             <PropertyRow label="Volumen">
               <input
                 aria-label="Volumen audio"
@@ -764,11 +881,14 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
-                  updateSelectedProperty('volume', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "volume",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 step={1}
                 type="range"
@@ -784,13 +904,15 @@ export function InspectorPanel() {
                 aria-label="Silencio audio"
                 className={`${inputClassName} inline-flex w-[92px] items-center justify-center px-0 text-[11px] font-medium ${
                   selectedAudioElement.muted
-                    ? 'border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]'
-                    : 'text-[#9ca3af]'
+                    ? "border-[#f59e0b] bg-[#f59e0b]/10 text-[#fbbf24]"
+                    : "text-[#9ca3af]"
                 }`}
-                onClick={() => updateSelectedProperty('muted', !selectedAudioElement.muted)}
+                onClick={() =>
+                  updateSelectedProperty("muted", !selectedAudioElement.muted)
+                }
                 type="button"
               >
-                {selectedAudioElement.muted ? 'Activado' : 'Desactivado'}
+                {selectedAudioElement.muted ? "Activado" : "Desactivado"}
               </button>
             </PropertyRow>
 
@@ -800,7 +922,14 @@ export function InspectorPanel() {
                 max={Math.max(0, selectedAudioElement.duration)}
                 min={0}
                 onValueChange={(nextValue) =>
-                  updateSelectedProperty('fadeIn', clamp(nextValue, 0, Math.max(0, selectedAudioElement.duration)))
+                  updateSelectedProperty(
+                    "fadeIn",
+                    clamp(
+                      nextValue,
+                      0,
+                      Math.max(0, selectedAudioElement.duration),
+                    ),
+                  )
                 }
                 step={0.1}
                 value={Number(selectedAudioElement.fadeIn.toFixed(2))}
@@ -814,7 +943,14 @@ export function InspectorPanel() {
                 max={Math.max(0, selectedAudioElement.duration)}
                 min={0}
                 onValueChange={(nextValue) =>
-                  updateSelectedProperty('fadeOut', clamp(nextValue, 0, Math.max(0, selectedAudioElement.duration)))
+                  updateSelectedProperty(
+                    "fadeOut",
+                    clamp(
+                      nextValue,
+                      0,
+                      Math.max(0, selectedAudioElement.duration),
+                    ),
+                  )
                 }
                 step={0.1}
                 value={Number(selectedAudioElement.fadeOut.toFixed(2))}
@@ -834,13 +970,17 @@ export function InspectorPanel() {
                 ariaLabel="Tamaño"
                 min={1}
                 onValueChange={(nextSize) => {
-                  const safeSize = clamp(nextSize, 1, 9999)
-                  const currentWidth = Math.max(1, selectedShapeElement.width)
-                  const aspectRatio = selectedShapeElement.height / currentWidth
-                  const nextHeight = Math.max(1, Math.round(safeSize * aspectRatio))
+                  const safeSize = clamp(nextSize, 1, 9999);
+                  const currentWidth = Math.max(1, selectedShapeElement.width);
+                  const aspectRatio =
+                    selectedShapeElement.height / currentWidth;
+                  const nextHeight = Math.max(
+                    1,
+                    Math.round(safeSize * aspectRatio),
+                  );
 
-                  updateSelectedProperty('width', safeSize)
-                  updateSelectedProperty('height', nextHeight)
+                  updateSelectedProperty("width", safeSize);
+                  updateSelectedProperty("height", nextHeight);
                 }}
                 step={1}
                 value={Math.round(selectedShapeElement.width)}
@@ -851,7 +991,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion X">
               <NumericField
                 ariaLabel="Posicion X"
-                onValueChange={(nextValue) => updateSelectedProperty('x', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("x", nextValue)
+                }
                 value={selectedShapeElement.x}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -860,7 +1002,9 @@ export function InspectorPanel() {
             <PropertyRow label="Posicion Y">
               <NumericField
                 ariaLabel="Posicion Y"
-                onValueChange={(nextValue) => updateSelectedProperty('y', nextValue)}
+                onValueChange={(nextValue) =>
+                  updateSelectedProperty("y", nextValue)
+                }
                 value={selectedShapeElement.y}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
@@ -871,7 +1015,7 @@ export function InspectorPanel() {
                 ariaLabel="Grosor borde"
                 min={0}
                 onValueChange={(nextValue) =>
-                  updateSelectedProperty('strokeWidth', Math.max(0, nextValue))
+                  updateSelectedProperty("strokeWidth", Math.max(0, nextValue))
                 }
                 step={1}
                 value={selectedShapeElement.strokeWidth}
@@ -884,14 +1028,18 @@ export function InspectorPanel() {
               <input
                 aria-label="Color borde"
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
-                onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("strokeColor", event.target.value)
+                }
                 type="color"
                 value={selectedShapeElement.strokeColor}
               />
               <input
                 aria-label="Codigo color borde"
                 className={`${inputClassName} w-[90px] text-right tabular-nums`}
-                onChange={(event) => updateSelectedProperty('strokeColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("strokeColor", event.target.value)
+                }
                 value={selectedShapeElement.strokeColor}
               />
             </PropertyRow>
@@ -900,14 +1048,18 @@ export function InspectorPanel() {
               <input
                 aria-label="Relleno"
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
-                onChange={(event) => updateSelectedProperty('fillColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("fillColor", event.target.value)
+                }
                 type="color"
                 value={selectedShapeElement.fillColor}
               />
               <input
                 aria-label="Codigo relleno"
                 className={`${inputClassName} w-[90px] text-right tabular-nums`}
-                onChange={(event) => updateSelectedProperty('fillColor', event.target.value)}
+                onChange={(event) =>
+                  updateSelectedProperty("fillColor", event.target.value)
+                }
                 value={selectedShapeElement.fillColor}
               />
             </PropertyRow>
@@ -919,13 +1071,16 @@ export function InspectorPanel() {
                 max={100}
                 min={0}
                 onChange={(event) => {
-                  const nextPercent = Number(event.target.value)
+                  const nextPercent = Number(event.target.value);
 
                   if (!Number.isFinite(nextPercent)) {
-                    return
+                    return;
                   }
 
-                  updateSelectedProperty('opacity', clamp(nextPercent, 0, 100) / 100)
+                  updateSelectedProperty(
+                    "opacity",
+                    clamp(nextPercent, 0, 100) / 100,
+                  );
                 }}
                 type="range"
                 value={selectedOpacityPercent}
@@ -939,7 +1094,9 @@ export function InspectorPanel() {
 
             <div className="mt-2 rounded-[6px] border border-[#2a2a34] bg-[#202028] p-2.5">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[#9ca3af]">Vista de la forma</span>
+                <span className="text-[11px] font-medium text-[#9ca3af]">
+                  Vista de la forma
+                </span>
                 <div className="flex items-center gap-1.5 text-[11px] text-[#9ca3af]">
                   <RotateCw className="h-[13px] w-[13px]" />
                   <span>{Math.round(selectedShapeElement.rotation)}°</span>
@@ -961,11 +1118,11 @@ export function InspectorPanel() {
                   max={180}
                   min={-180}
                   onChange={(event) => {
-                    const nextRotation = Number(event.target.value)
+                    const nextRotation = Number(event.target.value);
                     if (!Number.isFinite(nextRotation)) {
-                      return
+                      return;
                     }
-                    updateSelectedProperty('rotation', nextRotation)
+                    updateSelectedProperty("rotation", nextRotation);
                   }}
                   step={1}
                   type="range"
@@ -976,10 +1133,11 @@ export function InspectorPanel() {
           </PropertySection>
         ) : (
           <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-xs text-[#6b7280]">
-            Selecciona un texto, imagen, video, audio o forma para editar sus propiedades.
+            Selecciona un texto, imagen, video, audio o forma para editar sus
+            propiedades.
           </div>
         )}
       </div>
     </aside>
-  )
+  );
 }

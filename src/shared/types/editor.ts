@@ -3,7 +3,7 @@ export type SelectionSource = 'canvas' | 'timeline' | 'element-library'
 export const EFFECT_PRESETS = ['blur', 'grayscale', 'sepia', 'vignette', 'glow'] as const
 export type EditorEffect = (typeof EFFECT_PRESETS)[number]
 
-export const TRANSITION_PRESETS = ['fade', 'wipe', 'slide'] as const
+export const TRANSITION_PRESETS = ['fade', 'wipe', 'slide', 'dissolve', 'zoom', 'blur', 'crossfade'] as const
 export type TransitionPreset = (typeof TRANSITION_PRESETS)[number]
 
 type TimedElementBase = {

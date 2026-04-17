@@ -9,6 +9,7 @@ import { useAddShapeElement } from '../hooks/useAddShapeElement'
 import { useAddAudioElement } from '../hooks/useAddAudioElement'
 import { useAddImageElement } from '../hooks/useAddImageElement'
 import { useAddVideoElement } from '../hooks/useAddVideoElement'
+import { useAddTransitionElement } from '../hooks/useAddTransitionElement'
 import type { ElementLibraryCategory, ElementLibraryItem, ElementLibraryItemType } from '../types'
 
 type DragPayload =
@@ -17,6 +18,7 @@ type DragPayload =
   | { kind: 'audio'; assetId: string; label: string }
   | { kind: 'image'; assetId: string; label: string }
   | { kind: 'video'; assetId: string; label: string }
+  | { kind: 'transition'; preset: NonNullable<ElementLibraryItem['transitionPreset']>; label: string }
 
 type DragEndDetail = {
   payload: DragPayload
@@ -83,6 +85,7 @@ export function ElementLibraryPanel() {
   const addAudioElement = useAddAudioElement()
   const addImageElement = useAddImageElement()
   const addVideoElement = useAddVideoElement()
+  const addTransitionElement = useAddTransitionElement()
   const { trackEvent } = useInstrumentation()
   const [feedback, setFeedback] = useState<string | null>(null)
   const [lastPresetId, setLastPresetId] = useState<string | null>(null)
@@ -188,7 +191,9 @@ export function ElementLibraryPanel() {
             <div className="grid grid-cols-2 gap-2 max-[1024px]:grid-cols-1">
               {items.map((item) => {
                 const isPreset =
-                  (item.category === 'text' && item.textPreset) || (item.category === 'shapes' && item.shapePreset)
+                  (item.category === 'text' && item.textPreset) ||
+                  (item.category === 'shapes' && item.shapePreset) ||
+                  (item.category === 'transitions' && item.transitionPreset)
                 const isRecentPreset = isPreset && item.id === lastPresetId
                 const isImportedAudio = item.type === 'audio' && item.category === 'audio'
                 const isImportedImage = item.type === 'image' && item.category === 'media'
@@ -202,6 +207,8 @@ export function ElementLibraryPanel() {
                     ? { kind: 'text', preset: item.textPreset, label: item.name }
                     : item.category === 'shapes' && item.shapePreset
                       ? { kind: 'shape', preset: item.shapePreset, label: item.name }
+                      : item.category === 'transitions' && item.transitionPreset
+                        ? { kind: 'transition', preset: item.transitionPreset, label: item.name }
                       : isImportedAudio
                         ? { kind: 'audio', assetId: item.id, label: item.name }
                         : isImportedImage
@@ -225,6 +232,9 @@ export function ElementLibraryPanel() {
                         handleAddTextPreset(item)
                       } else if (item.category === 'shapes' && item.shapePreset) {
                         handleAddShapePreset(item)
+                    } else if (item.category === 'transitions' && item.transitionPreset) {
+                      trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
+                      addTransitionElement({ preset: item.transitionPreset, label: item.name })
                       } else if (item.type === 'audio') {
                         trackEvent('library_item_added', { itemId: item.id, type: item.type, category: item.category })
                         const created = addAudioElement({ assetId: item.id, label: item.name })
@@ -394,6 +404,8 @@ export function ElementLibraryPanel() {
                                   addTextElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
                                 } else if (activePayload.kind === 'shape') {
                                   addShapeElement({ preset: activePayload.preset, label: activePayload.label, dropPosition })
+                          } else if (activePayload.kind === 'transition') {
+                            addTransitionElement({ preset: activePayload.preset, label: activePayload.label })
                                 } else if (activePayload.kind === 'audio') {
                                   addAudioElement({ assetId: activePayload.assetId, label: activePayload.label })
                                 } else if (activePayload.kind === 'image') {
