@@ -6,14 +6,16 @@ import type { AudioElement, EditorElement, ImageElement, ShapeElement, TextEleme
 import { usePlaybackEngine } from '../hooks/usePlaybackEngine'
 import { clamp, formatTimecode, getMaxTrackEnd, getPlaybackDuration, isElementActiveAtTime } from '../utils/timeline'
 
+type VisualEditorElement = Exclude<EditorElement, { type: 'audio' | 'transition' }>
+
 type ActiveVisualContext = {
   trackId: string
   trackIndex: number
-  element: Exclude<EditorElement, { type: 'audio' }>
+  element: VisualEditorElement
 }
 
 function buildBaseVisualStyle(
-  element: Exclude<EditorElement, { type: 'audio' }>,
+  element: VisualEditorElement,
   resolution: { w: number; h: number },
   zIndex: number,
 ): CSSProperties {
@@ -93,7 +95,7 @@ function buildMediaElementStyle(
 }
 
 function buildElementStyle(
-  element: Exclude<EditorElement, { type: 'audio' }>,
+  element: VisualEditorElement,
   resolution: { w: number; h: number },
   previewScale: number,
   zIndex: number,
@@ -191,7 +193,7 @@ export function PlaybackWorkspace() {
 
     tracks.forEach((track, trackIndex) => {
       track.elements.forEach((element) => {
-        if (element.type === 'audio') {
+        if (element.type === 'audio' || element.type === 'transition') {
           return
         }
 

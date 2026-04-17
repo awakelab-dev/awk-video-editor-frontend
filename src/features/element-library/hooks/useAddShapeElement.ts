@@ -87,6 +87,7 @@ function buildShapeElement(
     startTime,
     duration: 5,
     opacity: 1,
+    effects: [],
     x: config.x,
     y: config.y,
     width: config.width,
@@ -142,3 +143,4 @@ export function useAddShapeElement() {
     [tracks, createTrack, addElement, selectElement, currentTime],
   );
 }
+

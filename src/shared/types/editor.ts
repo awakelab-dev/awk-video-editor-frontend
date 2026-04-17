@@ -1,11 +1,18 @@
 export type SelectionSource = 'canvas' | 'timeline' | 'element-library'
 
+export const EFFECT_PRESETS = ['blur', 'grayscale', 'sepia', 'vignette', 'glow'] as const
+export type EditorEffect = (typeof EFFECT_PRESETS)[number]
+
+export const TRANSITION_PRESETS = ['fade', 'wipe', 'slide'] as const
+export type TransitionPreset = (typeof TRANSITION_PRESETS)[number]
+
 type TimedElementBase = {
   id: string
   name: string
   startTime: number
   duration: number
   opacity: number
+  effects: EditorEffect[]
 }
 
 type VisualElementBase = TimedElementBase & {
@@ -66,12 +73,18 @@ export type ShapeElement = VisualElementBase & {
   cornerRadius: number
 }
 
+export type TransitionElement = TimedElementBase & {
+  type: 'transition'
+  transitionType: TransitionPreset
+}
+
 export type ElementType =
   | VideoElement
   | ImageElement
   | AudioElement
   | TextElement
   | ShapeElement
+  | TransitionElement
 
 export type EditorElement = ElementType
 
@@ -96,3 +109,4 @@ export interface MediaAsset {
   width?: number
   height?: number
 }
+

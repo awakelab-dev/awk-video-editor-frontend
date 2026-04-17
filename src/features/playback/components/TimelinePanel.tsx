@@ -23,7 +23,7 @@ import {
 import type { ElementKind } from "../../../shared/types/editor";
 import { clamp, formatSeconds, getPlaybackDuration } from "../utils/timeline";
 
-type TrackKind = "video" | "image" | "audio" | "text" | "shape" | "empty";
+type TrackKind = "video" | "image" | "audio" | "text" | "shape" | "transition" | "empty";
 
 const badgeByKind: Record<TrackKind, string> = {
   video: "bg-[#6366f1]/[0.12] text-[#6366f1]",
@@ -31,6 +31,7 @@ const badgeByKind: Record<TrackKind, string> = {
   audio: "bg-[#22c55e]/[0.15] text-[#22c55e]",
   text: "bg-[#f59e0b]/[0.15] text-[#f59e0b]",
   shape: "bg-[#14b8a6]/[0.15] text-[#14b8a6]",
+  transition: "bg-[#fb923c]/[0.15] text-[#fb923c]",
   empty: "bg-[#374151]/[0.2] text-[#9ca3af]",
 };
 
@@ -40,6 +41,7 @@ const clipByType: Record<Exclude<TrackKind, "empty">, string> = {
   text: "bg-gradient-to-b from-[#fbbf24] to-[#f59e0b]",
   audio: "bg-gradient-to-b from-[#4ade80] to-[#22c55e]",
   shape: "bg-gradient-to-b from-[#2dd4bf] to-[#14b8a6]",
+  transition: "bg-gradient-to-b from-[#fdba74] to-[#f97316]",
 };
 
 type DraggedTimelineElement = {
@@ -69,7 +71,8 @@ function getTrackKind(elementType?: string): TrackKind {
     elementType === "image" ||
     elementType === "audio" ||
     elementType === "text" ||
-    elementType === "shape"
+    elementType === "shape" ||
+    elementType === "transition"
   ) {
     return elementType;
   }
@@ -125,7 +128,8 @@ function readDraggedElement(
         parsed.elementType !== "image" &&
         parsed.elementType !== "audio" &&
         parsed.elementType !== "text" &&
-        parsed.elementType !== "shape")
+        parsed.elementType !== "shape" &&
+        parsed.elementType !== "transition")
     ) {
       return null;
     }

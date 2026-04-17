@@ -41,6 +41,7 @@ function buildAudioElement(
     // Use known duration if present; otherwise a placeholder that will be replaced after metadata loads.
     duration: options.duration ?? asset.duration ?? 5,
     opacity: 1,
+    effects: [],
     source: asset.source,
     playbackRate: 1,
     volume: 1,
@@ -105,3 +106,4 @@ export function useAddAudioElement() {
     [assets, tracks, currentTime, createTrack, addElement, selectElement, updateElementProperty],
   )
 }
+

@@ -11,6 +11,7 @@ function buildTextElement(id: string, startTime: number, duration = 5): TextElem
     startTime,
     duration,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 100,
     width: 400,
@@ -51,6 +52,7 @@ function buildAudioElement(id: string, startTime: number, duration = 5): AudioEl
     startTime,
     duration,
     opacity: 1,
+    effects: [],
     source: '/audio.mp3',
     playbackRate: 1,
     volume: 1,
@@ -68,6 +70,7 @@ function buildShapeElement(id: string, startTime: number, duration = 5): ShapeEl
     startTime,
     duration,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 100,
     width: 320,
@@ -367,3 +370,4 @@ describe('tracksSlice default tracks', () => {
     expect(nextState.tracks.find((track) => track.id === TEXT_TRACK_ID)?.elements).toHaveLength(0)
   })
 })
+

@@ -71,6 +71,7 @@ function buildVideoElement(
     startTime,
     duration: options.duration ?? asset.duration ?? 5,
     opacity: 1,
+    effects: [],
     x,
     y,
     width,
@@ -225,3 +226,4 @@ export function useAddVideoElement() {
     ],
   );
 }
+

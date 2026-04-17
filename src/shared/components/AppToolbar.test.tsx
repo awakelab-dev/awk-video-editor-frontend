@@ -12,6 +12,7 @@ function buildTextElement(overrides: Partial<TextElement> = {}): TextElement {
     startTime: 0,
     duration: 8,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 90,
     width: 260,
@@ -72,3 +73,4 @@ describe('AppToolbar', () => {
     expect(deleteButtons.every((button) => button.hasAttribute('disabled'))).toBe(true)
   })
 })
+

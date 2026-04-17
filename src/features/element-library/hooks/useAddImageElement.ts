@@ -56,6 +56,7 @@ function buildImageElement(
     startTime,
     duration: options.duration ?? 5,
     opacity: 1,
+    effects: [],
     x,
     y,
     width,
@@ -131,3 +132,4 @@ export function useAddImageElement() {
     [assets, tracks, currentTime, resolution, createTrack, addElement, selectElement, updateElementProperty],
   )
 }
+

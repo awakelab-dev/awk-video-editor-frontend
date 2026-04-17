@@ -18,6 +18,7 @@ function buildTextElement(): TextElement {
     startTime: 0,
     duration: 10,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 80,
     width: 220,
@@ -43,6 +44,7 @@ function buildShapeElement(): ShapeElement {
     startTime: 0,
     duration: 10,
     opacity: 1,
+    effects: [],
     x: 140,
     y: 120,
     width: 300,
@@ -64,6 +66,7 @@ function buildAudioElement(): AudioElement {
     startTime: 0,
     duration: 10,
     opacity: 1,
+    effects: [],
     source: '/audio.mp3',
     playbackRate: 1,
     volume: 0.5,
@@ -81,6 +84,7 @@ function buildVideoElement(): VideoElement {
     startTime: 0,
     duration: 10,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 80,
     width: 320,
@@ -403,4 +407,5 @@ describe('PlaybackWorkspace', () => {
     expect(screen.queryAllByTestId('playback-video-overlay')).toHaveLength(0)
   })
 })
+
 

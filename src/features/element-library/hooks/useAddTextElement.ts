@@ -88,6 +88,7 @@ function buildTextElement(
     startTime,
     duration: 5,
     opacity: 1,
+    effects: [],
     x: config.x,
     y: config.y,
     width: config.width,
@@ -146,3 +147,4 @@ export function useAddTextElement() {
 
   return addText
 }
+

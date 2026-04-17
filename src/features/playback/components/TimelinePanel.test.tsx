@@ -13,6 +13,7 @@ function buildTextElement(overrides: Partial<TextElement> = {}): TextElement {
     startTime: 0,
     duration: 10,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 80,
     width: 220,
@@ -306,3 +307,4 @@ describe('TimelinePanel', () => {
     expect(state.selectedElementId).toBe('text-1')
   })
 })
+
