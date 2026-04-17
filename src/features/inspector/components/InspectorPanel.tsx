@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { ChevronDown, Image as ImageIcon, Minus, Plus, RotateCw, SlidersHorizontal, Square, Type, Video as VideoIcon, Volume2 } from 'lucide-react'
 import { useEditorStore } from '../../../shared/store'
-import { TRANSITION_PRESETS } from '../../../shared/types/editor'
-import type { EditorElement, EditorEffect, TransitionPreset } from '../../../shared/types/editor'
+import { EFFECT_PRESETS } from '../../../shared/types/editor'
+import type { EditorElement, EditorEffect } from '../../../shared/types/editor'
 
 type KeysOfUnion<T> = T extends T ? keyof T : never
 type ValueOfUnion<T, K extends PropertyKey> = T extends T ? (K extends keyof T ? T[K] : never) : never
@@ -69,7 +69,7 @@ const inputClassName =
 const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`
 const stepperButtonClassName =
   'flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]'
-const inspectorEffectOptions: Array<{ label: string; value: TransitionPreset }> = TRANSITION_PRESETS.map((preset) => ({
+const inspectorEffectOptions: Array<{ label: string; value: EditorEffect }> = EFFECT_PRESETS.map((preset) => ({
   label: preset.charAt(0).toUpperCase() + preset.slice(1),
   value: preset,
 }))
@@ -333,7 +333,7 @@ export function InspectorPanel() {
   const renderEffectsSelector = (elementId: string) => {
     const selectedEffect = selectedElement?.id === elementId ? selectedElement.effects[0] : undefined
     const currentEffect =
-      selectedEffect && TRANSITION_PRESETS.includes(selectedEffect as TransitionPreset)
+      selectedEffect && EFFECT_PRESETS.includes(selectedEffect)
         ? selectedEffect
         : 'none'
 
@@ -346,7 +346,7 @@ export function InspectorPanel() {
             onChange={(event) =>
               updateSelectedProperty(
                 'effects',
-                event.target.value === 'none' ? [] : [event.target.value as unknown as EditorEffect],
+                event.target.value === 'none' ? [] : [event.target.value as EditorEffect],
               )
             }
             value={currentEffect}

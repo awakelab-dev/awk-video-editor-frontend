@@ -435,12 +435,12 @@ describe('InspectorPanel', () => {
 
     render(<InspectorPanel />)
 
-    fireEvent.change(screen.getByLabelText('Efectos'), { target: { value: 'fade' } })
+    fireEvent.change(screen.getByLabelText('Efectos'), { target: { value: 'blur' } })
 
     const updatedText = useEditorStore.getState().tracks[0]?.elements[0]
     expect(updatedText?.type).toBe('text')
     if (updatedText?.type === 'text') {
-      expect(updatedText.effects).toEqual(['fade'])
+      expect(updatedText.effects).toEqual(['blur'])
     }
 
     fireEvent.change(screen.getByLabelText('Efectos'), { target: { value: 'none' } })
