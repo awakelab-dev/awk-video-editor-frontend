@@ -13,7 +13,6 @@ import type {
   CSSProperties,
   DragEvent,
   MouseEvent as ReactMouseEvent,
-  WheelEvent as ReactWheelEvent,
 } from "react";
 import { useEditorStore } from "../../../shared/store";
 import {
@@ -192,6 +191,8 @@ export function TimelinePanel() {
     null,
   );
   const timelineSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const trackLabelsScrollRef = useRef<HTMLDivElement | null>(null);
+  const timelineScrollAreaRef = useRef<HTMLDivElement | null>(null);
   const resumePlaybackAfterScrubRef = useRef(false);
   const resizingElementIdRef = useRef<string | null>(null);
 
@@ -214,6 +215,27 @@ export function TimelinePanel() {
     Math.max(0, ((zoomLevel - 50) / 350) * 100),
   );
   const canDeleteSelection = selectedElementId !== null;
+
+  const syncTracksScroll = (source: "labels" | "timeline") => {
+    const sourceElement =
+      source === "labels"
+        ? trackLabelsScrollRef.current
+        : timelineScrollAreaRef.current;
+    const targetElement =
+      source === "labels"
+        ? timelineScrollAreaRef.current
+        : trackLabelsScrollRef.current;
+
+    if (!sourceElement || !targetElement) {
+      return;
+    }
+
+    if (Math.abs(targetElement.scrollTop - sourceElement.scrollTop) < 1) {
+      return;
+    }
+
+    targetElement.scrollTop = sourceElement.scrollTop;
+  };
 
   useEffect(() => {
     const handleDeleteShortcut = (event: KeyboardEvent) => {
@@ -500,27 +522,6 @@ export function TimelinePanel() {
     setDropPreview(null);
   };
 
-  const handleTimelineWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-
-    const dominantDelta =
-      Math.abs(event.deltaY) >= Math.abs(event.deltaX)
-        ? event.deltaY
-        : event.deltaX;
-    if (dominantDelta === 0) {
-      return;
-    }
-
-    const secondsPerPixel = timelineDuration / Math.max(timelineCanvasWidth, 1);
-    const sensitivity = event.shiftKey ? 0.2 : 0.5;
-    const nextTime = clamp(
-      currentTime + dominantDelta * secondsPerPixel * sensitivity,
-      0,
-      timelineDuration,
-    );
-    seek(nextTime);
-  };
-
   const startScrubbing = (event: ReactMouseEvent<HTMLElement>) => {
     if (!timelineSurfaceRef.current || event.button !== 0) {
       return;
@@ -637,7 +638,12 @@ export function TimelinePanel() {
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="w-[180px] shrink-0 overflow-y-auto border-r border-[#2a2a34] pt-7 max-[1440px]:w-[165px] max-[1280px]:w-[150px] max-[1024px]:w-[130px]">
+        <div
+          className="timeline-track-labels-scroll w-[180px] shrink-0 overflow-y-auto border-r border-[#2a2a34] pt-7 max-[1440px]:w-[165px] max-[1280px]:w-[150px] max-[1024px]:w-[130px]"
+          data-testid="timeline-track-labels-scroll"
+          onScroll={() => syncTracksScroll("labels")}
+          ref={trackLabelsScrollRef}
+        >
           {tracks.map((track, index) => {
             const kind = getTrackKind(track.elements[0]?.type);
             return (
@@ -692,9 +698,10 @@ export function TimelinePanel() {
         </div>
 
         <div
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-visible"
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-auto"
           data-testid="timeline-scroll-area"
-          onWheel={handleTimelineWheel}
+          onScroll={() => syncTracksScroll("timeline")}
+          ref={timelineScrollAreaRef}
         >
           <div
             className="relative"

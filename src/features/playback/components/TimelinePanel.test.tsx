@@ -54,12 +54,27 @@ describe('TimelinePanel', () => {
     })
   })
 
-  it('hace scrub con la rueda sobre el timeline', () => {
+  it('no hace scrub con la rueda sobre el timeline', () => {
     render(<TimelinePanel />)
 
     fireEvent.wheel(screen.getByTestId('timeline-scroll-area'), { deltaY: 120 })
 
-    expect(useEditorStore.getState().currentTime).toBeGreaterThan(0)
+    expect(useEditorStore.getState().currentTime).toBe(0)
+  })
+
+  it('sincroniza el scroll vertical entre títulos y tracks', () => {
+    render(<TimelinePanel />)
+
+    const labelsScroll = screen.getByTestId('timeline-track-labels-scroll')
+    const timelineScroll = screen.getByTestId('timeline-scroll-area')
+
+    timelineScroll.scrollTop = 64
+    fireEvent.scroll(timelineScroll)
+    expect(labelsScroll.scrollTop).toBe(64)
+
+    labelsScroll.scrollTop = 28
+    fireEvent.scroll(labelsScroll)
+    expect(timelineScroll.scrollTop).toBe(28)
   })
 
   it('permite mover el playhead con drag', () => {
