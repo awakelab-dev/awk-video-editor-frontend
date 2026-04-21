@@ -6,7 +6,7 @@ import { LoginPage } from '../pages/LoginPage'
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate replace to="/editor" />,
+    element: <Navigate replace to="/gallery" />,
   },
   {
     path: '/editor',

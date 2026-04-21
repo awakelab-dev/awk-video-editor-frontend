@@ -41,6 +41,7 @@ function ToolbarIconButton({
 
 export function AppToolbar() {
   const selectedElementId = useEditorStore((state) => state.selectedElementId);
+  const projectName = useEditorStore((state) => state.projectName);
   const removeSelectedElement = useEditorStore(
     (state) => state.removeSelectedElement,
   );
@@ -101,8 +102,14 @@ export function AppToolbar() {
 
       <div className="flex items-center gap-2">
         <span className="hidden max-w-40 truncate text-[13px] text-[#6b7280] md:block">
-          Proyecto Demo
+          {projectName}
         </span>
+        <a
+          className="hidden rounded-[6px] border border-[#35353f] bg-[#25252e] px-3 py-[7px] text-[12px] font-medium text-[#f0f0f4] transition hover:bg-[#2e2e38] lg:inline-flex"
+          href="/gallery"
+        >
+          Biblioteca
+        </a>
         <ToolbarIconButton ariaLabel="Configuración">
           <Settings className="h-4 w-4" />
         </ToolbarIconButton>
