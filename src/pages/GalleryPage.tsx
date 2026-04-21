@@ -1,5 +1,5 @@
 import { CalendarDays, Clock3, PanelsTopLeft } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { type KeyboardEvent, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   loadPresentationProject,
@@ -35,6 +35,13 @@ export function GalleryPage() {
     const projectWasLoaded = loadPresentationProject(projectId)
     if (projectWasLoaded) {
       navigate(`/editor?project=${encodeURIComponent(projectId)}`)
+    }
+  }
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>, projectId: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleLoadProject(projectId)
     }
   }
 
@@ -88,8 +95,13 @@ export function GalleryPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleProjects.map((project) => (
               <article
-                className="overflow-hidden rounded-xl border border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+                aria-label={`Cargar proyecto ${project.name}`}
+                className="transform-gpu cursor-pointer overflow-hidden rounded-xl border border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d11]"
                 key={project.id}
+                onClick={() => handleLoadProject(project.id)}
+                onKeyDown={(event) => handleCardKeyDown(event, project.id)}
+                role="button"
+                tabIndex={0}
               >
                 <div
                   className="relative aspect-video border-b border-white/10 p-3"
@@ -143,7 +155,10 @@ export function GalleryPage() {
                     </span>
                     <button
                       className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#818cf8]"
-                      onClick={() => handleLoadProject(project.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleLoadProject(project.id)
+                      }}
                       type="button"
                     >
                       Cargar
