@@ -1,10 +1,97 @@
 import { CalendarDays, Clock3, PanelsTopLeft } from 'lucide-react'
-import { type KeyboardEvent, useMemo, useState } from 'react'
+import { type CSSProperties, type KeyboardEvent, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   loadPresentationProject,
   presentationProjects,
+  type PresentationProject,
 } from '../shared/projects/presentationLibrary'
+import type { EditorElement, TextElement } from '../shared/types/editor'
+
+type VisualFrameElement = Exclude<EditorElement, { type: 'audio' | 'transition' }>
+type FrameElementContext = {
+  element: VisualFrameElement
+  zIndex: number
+}
+
+function isElementActiveAtStart(element: EditorElement): element is VisualFrameElement {
+  if (element.type === 'audio' || element.type === 'transition') {
+    return false
+  }
+
+  return element.startTime <= 0 && element.startTime + element.duration > 0
+}
+
+function getFirstFrameElements(project: PresentationProject): FrameElementContext[] {
+  const firstFrameElements: FrameElementContext[] = []
+
+  project.tracks.forEach((track, trackIndex) => {
+    track.elements.forEach((element) => {
+      if (isElementActiveAtStart(element)) {
+        firstFrameElements.push({
+          element,
+          zIndex: project.tracks.length - trackIndex,
+        })
+      }
+    })
+  })
+
+  return firstFrameElements
+}
+
+function buildBaseFrameStyle(
+  element: VisualFrameElement,
+  resolution: { w: number; h: number },
+  zIndex: number,
+): CSSProperties {
+  const safeW = Math.max(1, resolution.w)
+  const safeH = Math.max(1, resolution.h)
+
+  return {
+    position: 'absolute',
+    left: `${(element.x / safeW) * 100}%`,
+    top: `${(element.y / safeH) * 100}%`,
+    width: `${Math.max(0, (element.width / safeW) * 100)}%`,
+    height: `${Math.max(0, (element.height / safeH) * 100)}%`,
+    transform: `rotate(${element.rotation}deg)`,
+    transformOrigin: 'center center',
+    opacity: element.opacity,
+    zIndex,
+  }
+}
+
+function buildTextFrameStyle(
+  element: TextElement,
+  resolution: { w: number; h: number },
+  zIndex: number,
+): CSSProperties {
+  const previewReferenceWidth = 320
+  const fontScale = previewReferenceWidth / Math.max(resolution.w, 1)
+
+  return {
+    ...buildBaseFrameStyle(element, resolution, zIndex),
+    color: element.textColor,
+    backgroundColor: element.backgroundColor,
+    fontFamily: element.fontFamily,
+    fontSize: `${Math.max(7, element.fontSize * fontScale)}px`,
+    fontWeight: element.fontWeight,
+    lineHeight: element.lineHeight,
+    letterSpacing: `${Math.max(0, element.letterSpacing * fontScale)}px`,
+    textAlign: element.textAlign,
+    whiteSpace: 'pre-wrap',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent:
+      element.textAlign === 'left'
+        ? 'flex-start'
+        : element.textAlign === 'right'
+          ? 'flex-end'
+          : 'center',
+    padding: '2px 4px',
+    textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+  }
+}
 
 export function GalleryPage() {
   const navigate = useNavigate()
@@ -105,9 +192,70 @@ export function GalleryPage() {
               >
                 <div
                   className="relative aspect-video border-b border-white/10 p-3"
-                  style={{ background: project.thumbnail.gradient }}
+                  style={{ backgroundColor: '#090b12' }}
                 >
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.22),transparent_50%)]" />
+                  <div className="pointer-events-none absolute inset-0 z-[1]">
+                    {getFirstFrameElements(project).map(({ element, zIndex }) => {
+                      if (element.type === 'shape') {
+                        return (
+                          <div
+                            className="absolute"
+                            key={element.id}
+                            style={{
+                              ...buildBaseFrameStyle(element, project.resolution, zIndex),
+                              backgroundColor: element.fillColor,
+                              outline: `${Math.max(0, element.strokeWidth)}px solid ${element.strokeColor}`,
+                              borderRadius: `${Math.max(0, element.cornerRadius)}px`,
+                            }}
+                          />
+                        )
+                      }
+
+                      if (element.type === 'text') {
+                        return (
+                          <div
+                            className="absolute"
+                            key={element.id}
+                            style={buildTextFrameStyle(element, project.resolution, zIndex)}
+                          >
+                            {element.text}
+                          </div>
+                        )
+                      }
+
+                      if (element.type === 'image') {
+                        return (
+                          <div
+                            className="absolute overflow-hidden"
+                            key={element.id}
+                            style={{
+                              ...buildBaseFrameStyle(element, project.resolution, zIndex),
+                              outline: `${Math.max(0, element.borderWidth)}px solid ${element.borderColor}`,
+                            }}
+                          >
+                            <img
+                              alt={element.name}
+                              className="h-full w-full"
+                              draggable={false}
+                              src={element.source}
+                              style={{ objectFit: element.fit }}
+                            />
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div
+                          className="absolute overflow-hidden bg-black/30"
+                          key={element.id}
+                          style={buildBaseFrameStyle(element, project.resolution, zIndex)}
+                        >
+                          <video className="h-full w-full object-cover" muted preload="metadata" src={element.source} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.12),transparent_55%)]" />
                   <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col justify-between p-3">
                     <div className="flex items-start justify-end">
                       <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
@@ -124,22 +272,6 @@ export function GalleryPage() {
                         <PanelsTopLeft className="h-3 w-3" />
                         {project.slides}
                       </span>
-                    </div>
-                  </div>
-                  <div className="relative z-[1] mt-4 max-w-[75%] rounded-md bg-black/35 p-3 backdrop-blur-[1px]">
-                    <p className="text-[15px] font-semibold leading-tight text-white">
-                      {project.thumbnail.title}
-                    </p>
-                    <p className="mt-1 text-[11px] text-white/80">{project.thumbnail.subtitle}</p>
-                    <div className="mt-2 space-y-1">
-                      {project.thumbnail.bullets.map((item) => (
-                        <span
-                          className="block w-fit rounded bg-white/20 px-2 py-0.5 text-[10px] text-white/90"
-                          key={item}
-                        >
-                          {item}
-                        </span>
-                      ))}
                     </div>
                   </div>
                 </div>
