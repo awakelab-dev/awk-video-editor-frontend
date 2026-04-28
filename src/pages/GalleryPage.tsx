@@ -5,6 +5,7 @@ import {
   loadPresentationProject,
   presentationProjects,
   type PresentationProject,
+  type PresentationProjectStatus,
 } from '../shared/projects/presentationLibrary'
 import type { EditorElement, TextElement } from '../shared/types/editor'
 
@@ -13,6 +14,15 @@ type FrameElementContext = {
   element: VisualFrameElement
   zIndex: number
 }
+
+type ProjectFilter = 'all' | PresentationProjectStatus
+
+const filterOptions: { id: ProjectFilter; label: string }[] = [
+  { id: 'all', label: 'Todos' },
+  { id: 'draft', label: 'Borrador' },
+  { id: 'review', label: 'En revision' },
+  { id: 'published', label: 'Publicados' },
+]
 
 function isElementActiveAtStart(element: EditorElement): element is VisualFrameElement {
   if (element.type === 'audio' || element.type === 'transition') {
@@ -96,11 +106,18 @@ function buildTextFrameStyle(
 export function GalleryPage() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<ProjectFilter>('all')
 
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     return presentationProjects.filter((project) => {
+      const matchesFilter = activeFilter === 'all' || project.status === activeFilter
+
+      if (!matchesFilter) {
+        return false
+      }
+
       if (!normalizedQuery) {
         return true
       }
@@ -116,7 +133,7 @@ export function GalleryPage() {
 
       return searchableText.includes(normalizedQuery)
     })
-  }, [query])
+  }, [query, activeFilter])
 
   const handleLoadProject = (projectId: string) => {
     const projectWasLoaded = loadPresentationProject(projectId)
@@ -146,8 +163,8 @@ export function GalleryPage() {
     }).format(new Date(isoDate))
 
   return (
-    <main className="h-screen overflow-y-auto bg-[#0d0d11] px-4 py-7 text-[#f0f0f4] sm:px-6 lg:px-8">
-      <section className="mx-auto w-full max-w-7xl">
+    <main className="h-screen overflow-hidden bg-[#0d0d11] px-4 py-7 text-[#f0f0f4] sm:px-6 lg:px-8">
+      <section className="mx-auto flex h-full w-full max-w-7xl flex-col">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold sm:text-3xl">Biblioteca de Proyectos</h1>
@@ -169,136 +186,160 @@ export function GalleryPage() {
         </header>
 
         <div className="mb-5 rounded-lg border border-[#2a2a34] bg-[#15151b] p-3">
-          <input
-            className="w-full min-w-[220px] flex-1 rounded-md border border-[#2a2a34] bg-[#0f0f14] px-3 py-2 text-sm text-[#f0f0f4] outline-none transition focus:border-[#6366f1]"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre, etiquetas o responsable"
-            type="search"
-            value={query}
-          />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <input
+              className="w-full rounded-md border border-[#2a2a34] bg-[#0f0f14] px-3 py-2 text-sm text-[#f0f0f4] outline-none transition focus:border-[#6366f1] lg:max-w-md"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar por nombre, etiquetas o responsable"
+              type="search"
+              value={query}
+            />
+            <div className="flex flex-wrap gap-2">
+              {filterOptions.map((filter) => {
+                const isActive = filter.id === activeFilter
+
+                return (
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                      isActive
+                        ? 'border-[#6366f1] bg-[#6366f1] text-white'
+                        : 'border-[#2f2f3a] bg-[#1a1a22] text-[#d1d5db] hover:border-[#4b5563] hover:bg-[#22222d]'
+                    }`}
+                    key={filter.id}
+                    onClick={() => setActiveFilter(filter.id)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         {visibleProjects.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleProjects.map((project) => (
-              <article
-                aria-label={`Cargar proyecto ${project.name}`}
-                className="transform-gpu cursor-pointer overflow-hidden rounded-xl border border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d11]"
-                key={project.id}
-                onClick={() => handleLoadProject(project.id)}
-                onKeyDown={(event) => handleCardKeyDown(event, project.id)}
-                role="button"
-                tabIndex={0}
-              >
-                <div
-                  className="relative aspect-video border-b border-white/10 p-3"
-                  style={{ backgroundColor: '#090b12' }}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[minmax(0,calc((100vh-18.5rem)/2))]">
+              {visibleProjects.map((project) => (
+                <article
+                  aria-label={`Cargar proyecto ${project.name}`}
+                  className="flex h-full transform-gpu cursor-pointer flex-col overflow-hidden rounded-xl border border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d11]"
+                  key={project.id}
+                  onClick={() => handleLoadProject(project.id)}
+                  onKeyDown={(event) => handleCardKeyDown(event, project.id)}
+                  role="button"
+                  tabIndex={0}
                 >
-                  <div className="pointer-events-none absolute inset-0 z-[1]">
-                    {getFirstFrameElements(project).map(({ element, zIndex }) => {
-                      if (element.type === 'shape') {
-                        return (
-                          <div
-                            className="absolute"
-                            key={element.id}
-                            style={{
-                              ...buildBaseFrameStyle(element, project.resolution, zIndex),
-                              backgroundColor: element.fillColor,
-                              outline: `${Math.max(0, element.strokeWidth)}px solid ${element.strokeColor}`,
-                              borderRadius: `${Math.max(0, element.cornerRadius)}px`,
-                            }}
-                          />
-                        )
-                      }
-
-                      if (element.type === 'text') {
-                        return (
-                          <div
-                            className="absolute"
-                            key={element.id}
-                            style={buildTextFrameStyle(element, project.resolution, zIndex)}
-                          >
-                            {element.text}
-                          </div>
-                        )
-                      }
-
-                      if (element.type === 'image') {
-                        return (
-                          <div
-                            className="absolute overflow-hidden"
-                            key={element.id}
-                            style={{
-                              ...buildBaseFrameStyle(element, project.resolution, zIndex),
-                              outline: `${Math.max(0, element.borderWidth)}px solid ${element.borderColor}`,
-                            }}
-                          >
-                            <img
-                              alt={element.name}
-                              className="h-full w-full"
-                              draggable={false}
-                              src={element.source}
-                              style={{ objectFit: element.fit }}
+                  <div
+                    className="relative h-[52%] min-h-[130px] border-b border-white/10 p-2.5"
+                    style={{ backgroundColor: '#090b12' }}
+                  >
+                    <div className="pointer-events-none absolute inset-0 z-[1]">
+                      {getFirstFrameElements(project).map(({ element, zIndex }) => {
+                        if (element.type === 'shape') {
+                          return (
+                            <div
+                              className="absolute"
+                              key={element.id}
+                              style={{
+                                ...buildBaseFrameStyle(element, project.resolution, zIndex),
+                                backgroundColor: element.fillColor,
+                                outline: `${Math.max(0, element.strokeWidth)}px solid ${element.strokeColor}`,
+                                borderRadius: `${Math.max(0, element.cornerRadius)}px`,
+                              }}
                             />
+                          )
+                        }
+
+                        if (element.type === 'text') {
+                          return (
+                            <div
+                              className="absolute"
+                              key={element.id}
+                              style={buildTextFrameStyle(element, project.resolution, zIndex)}
+                            >
+                              {element.text}
+                            </div>
+                          )
+                        }
+
+                        if (element.type === 'image') {
+                          return (
+                            <div
+                              className="absolute overflow-hidden"
+                              key={element.id}
+                              style={{
+                                ...buildBaseFrameStyle(element, project.resolution, zIndex),
+                                outline: `${Math.max(0, element.borderWidth)}px solid ${element.borderColor}`,
+                              }}
+                            >
+                              <img
+                                alt={element.name}
+                                className="h-full w-full"
+                                draggable={false}
+                                src={element.source}
+                                style={{ objectFit: element.fit }}
+                              />
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div
+                            className="absolute overflow-hidden bg-black/30"
+                            key={element.id}
+                            style={buildBaseFrameStyle(element, project.resolution, zIndex)}
+                          >
+                            <video className="h-full w-full object-cover" muted preload="metadata" src={element.source} />
                           </div>
                         )
-                      }
-
-                      return (
-                        <div
-                          className="absolute overflow-hidden bg-black/30"
-                          key={element.id}
-                          style={buildBaseFrameStyle(element, project.resolution, zIndex)}
-                        >
-                          <video className="h-full w-full object-cover" muted preload="metadata" src={element.source} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.12),transparent_55%)]" />
-                  <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col justify-between p-3">
-                    <div className="flex items-start justify-end">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
-                        <Clock3 className="h-3 w-3" />
-                        {formatDuration(project.durationSeconds)}
-                      </span>
+                      })}
                     </div>
-                    <div className="flex items-end justify-between gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
-                        <CalendarDays className="h-3 w-3" />
-                        {formatDate(project.lastEditedAt)}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
-                        <PanelsTopLeft className="h-3 w-3" />
-                        {project.slides}
-                      </span>
+                    <div className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.12),transparent_55%)]" />
+                    <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col justify-between p-2.5">
+                      <div className="flex items-start justify-end">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
+                          <Clock3 className="h-3 w-3" />
+                          {formatDuration(project.durationSeconds)}
+                        </span>
+                      </div>
+                      <div className="flex items-end justify-between gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
+                          <CalendarDays className="h-3 w-3" />
+                          {formatDate(project.lastEditedAt)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-[2px]">
+                          <PanelsTopLeft className="h-3 w-3" />
+                          {project.slides}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-3 p-4">
-                  <div>
-                    <h2 className="text-base font-semibold leading-tight">{project.name}</h2>
-                  </div>
+                  <div className="flex-1 space-y-2 p-3">
+                    <div>
+                      <h2 className="text-sm font-semibold leading-tight sm:text-base">{project.name}</h2>
+                    </div>
 
-                  <div className="flex items-center justify-between gap-2 border-t border-[#2a2a34] pt-3">
-                    <span className="truncate text-xs text-[#6b7280]">
-                      {project.owner} · {project.collaborators} colaboradores · {project.resolution.w}x{project.resolution.h}
-                    </span>
-                    <button
-                      className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#818cf8]"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleLoadProject(project.id)
-                      }}
-                      type="button"
-                    >
-                      Cargar
-                    </button>
+                    <div className="flex items-center justify-between gap-2 border-t border-[#2a2a34] pt-2.5">
+                      <span className="truncate text-[11px] text-[#9ca3af] sm:text-xs">
+                        {project.owner} - {project.collaborators} colaboradores - {project.resolution.w}x{project.resolution.h}
+                      </span>
+                      <button
+                        className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#818cf8]"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleLoadProject(project.id)
+                        }}
+                        type="button"
+                      >
+                        Cargar
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[#35353f] bg-[#15151b] p-10 text-center">
@@ -309,7 +350,7 @@ export function GalleryPage() {
           </div>
         )}
 
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link
             className="rounded-md border border-[#35353f] bg-[#25252e] px-4 py-2 text-sm text-[#f0f0f4] transition hover:bg-[#2e2e38]"
             to="/editor"
