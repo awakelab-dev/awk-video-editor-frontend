@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { createElement, isElementsApiEnabled } from "../../../shared/api/textElementsApi";
 import { useEditorStore } from "../../../shared/store";
 import {
   MEDIA_TRACK_ID,
@@ -119,6 +120,7 @@ function createMediaTrack(): Track {
 
 export function useAddShapeElement() {
   const tracks = useEditorStore((state) => state.tracks);
+  const projectId = useEditorStore((state) => state.projectId);
   const createTrack = useEditorStore((state) => state.createTrack);
   const addElement = useEditorStore((state) => state.addElement);
   const selectElement = useEditorStore((state) => state.selectElement);
@@ -136,11 +138,26 @@ export function useAddShapeElement() {
         (element) => element.type === "shape",
       ).length;
       const element = buildShapeElement(sequence, options, currentTime);
+      if (isElementsApiEnabled()) {
+        void createElement(projectId, {
+          id: element.id,
+          type: "shape",
+          name: element.name,
+          startTime: element.startTime,
+          duration: element.duration,
+          opacity: element.opacity,
+          x: element.x,
+          y: element.y,
+          trackId: mediaTrack.id,
+        }).catch((error) => {
+          console.error("[ElementLibrary][shape] create api failed", error);
+        });
+      }
       addElement(mediaTrack.id, element);
       selectElement(element.id, "element-library");
       return element;
     },
-    [tracks, createTrack, addElement, selectElement, currentTime],
+    [tracks, projectId, createTrack, addElement, selectElement, currentTime],
   );
 }
 

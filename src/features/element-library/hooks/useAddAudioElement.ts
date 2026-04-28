@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { createElement, isElementsApiEnabled } from '../../../shared/api/textElementsApi'
 import { useEditorStore } from '../../../shared/store'
 import type { AudioElement, Track } from '../../../shared/types/editor'
 
@@ -53,6 +54,7 @@ function buildAudioElement(
 
 export function useAddAudioElement() {
   const tracks = useEditorStore((state) => state.tracks)
+  const projectId = useEditorStore((state) => state.projectId)
   const assets = useEditorStore((state) => state.assets)
   const currentTime = useEditorStore((state) => state.currentTime)
   const createTrack = useEditorStore((state) => state.createTrack)
@@ -76,6 +78,25 @@ export function useAddAudioElement() {
 
       const sequence = audioTrack.elements.filter((element) => element.type === 'audio').length
       const element = buildAudioElement(sequence, asset, options, currentTime)
+      if (isElementsApiEnabled()) {
+        void createElement(projectId, {
+          id: element.id,
+          type: 'audio',
+          name: element.name,
+          startTime: element.startTime,
+          duration: element.duration,
+          opacity: element.opacity,
+          source: element.source,
+          playbackRate: element.playbackRate,
+          volume: element.volume,
+          muted: element.muted,
+          fadeIn: element.fadeIn,
+          fadeOut: element.fadeOut,
+          trackId: audioTrack.id,
+        }).catch((error) => {
+          console.error('[ElementLibrary][audio] create api failed', error)
+        })
+      }
       addElement(audioTrack.id, element)
       selectElement(element.id, 'element-library')
       console.log('[ElementLibrary][audio] created', { trackId: audioTrack.id, element, assetId: asset.id })
@@ -103,7 +124,7 @@ export function useAddAudioElement() {
 
       return element
     },
-    [assets, tracks, currentTime, createTrack, addElement, selectElement, updateElementProperty],
+    [assets, tracks, projectId, currentTime, createTrack, addElement, selectElement, updateElementProperty],
   )
 }
 

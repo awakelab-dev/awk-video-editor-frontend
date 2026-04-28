@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { createElement, isElementsApiEnabled } from '../../../shared/api/textElementsApi'
 import { useEditorStore } from '../../../shared/store'
 import { MEDIA_TRACK_ID, MEDIA_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { ImageElement, Track } from '../../../shared/types/editor'
@@ -71,6 +72,7 @@ function buildImageElement(
 
 export function useAddImageElement() {
   const tracks = useEditorStore((state) => state.tracks)
+  const projectId = useEditorStore((state) => state.projectId)
   const assets = useEditorStore((state) => state.assets)
   const currentTime = useEditorStore((state) => state.currentTime)
   const resolution = useEditorStore((state) => state.resolution)
@@ -95,6 +97,26 @@ export function useAddImageElement() {
 
       const sequence = mediaTrack.elements.filter((element) => element.type === 'image').length
       const element = buildImageElement(sequence, asset, options, resolution, options.startTime ?? currentTime)
+      if (isElementsApiEnabled()) {
+        void createElement(projectId, {
+          id: element.id,
+          type: 'image',
+          name: element.name,
+          startTime: element.startTime,
+          duration: element.duration,
+          opacity: element.opacity,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+          rotation: element.rotation,
+          source: element.source,
+          fit: element.fit,
+          trackId: mediaTrack.id,
+        }).catch((error) => {
+          console.error('[ElementLibrary][image] create api failed', error)
+        })
+      }
       addElement(mediaTrack.id, element)
       selectElement(element.id, 'element-library')
       console.log('[ElementLibrary][image] created', { trackId: mediaTrack.id, element, assetId: asset.id })
@@ -129,7 +151,17 @@ export function useAddImageElement() {
 
       return element
     },
-    [assets, tracks, currentTime, resolution, createTrack, addElement, selectElement, updateElementProperty],
+    [
+      assets,
+      tracks,
+      projectId,
+      currentTime,
+      resolution,
+      createTrack,
+      addElement,
+      selectElement,
+      updateElementProperty,
+    ],
   )
 }
 
