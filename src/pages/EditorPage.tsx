@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { EditorLayout } from '../layouts/EditorLayout'
+import { isProjectsApiEnabled, loadApiProjectIntoStore } from '../shared/api/projectsApi'
 import { loadPresentationProject } from '../shared/projects/presentationLibrary'
 
 export function EditorPage() {
@@ -12,7 +13,15 @@ export function EditorPage() {
       return
     }
 
-    loadPresentationProject(projectId)
+    if (!isProjectsApiEnabled()) {
+      loadPresentationProject(projectId)
+      return
+    }
+
+    void loadApiProjectIntoStore(projectId).catch((error) => {
+      console.error('No se pudo cargar el proyecto desde la API.', error)
+      loadPresentationProject(projectId)
+    })
   }, [projectId])
 
   return <EditorLayout />

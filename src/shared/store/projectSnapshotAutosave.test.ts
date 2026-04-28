@@ -17,6 +17,7 @@ function buildTextElement(id: string, startTime: number, duration: number): Text
     startTime,
     duration,
     opacity: 1,
+    effects: [],
     x: 100,
     y: 100,
     width: 400,

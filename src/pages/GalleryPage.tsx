@@ -1,11 +1,8 @@
 import { CalendarDays, Clock3, PanelsTopLeft } from 'lucide-react'
-import { type CSSProperties, type KeyboardEvent, useMemo, useState } from 'react'
+import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  loadPresentationProject,
-  presentationProjects,
-  type PresentationProject,
-} from '../shared/projects/presentationLibrary'
+import { isProjectsApiEnabled, listProjects, loadApiProjectIntoStore } from '../shared/api/projectsApi'
+import { loadPresentationProjectData, type PresentationProject } from '../shared/projects/presentationLibrary'
 import type { EditorElement, TextElement } from '../shared/types/editor'
 
 type VisualFrameElement = Exclude<EditorElement, { type: 'audio' | 'transition' }>
@@ -96,11 +93,53 @@ function buildTextFrameStyle(
 export function GalleryPage() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const [projects, setProjects] = useState<PresentationProject[]>([])
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadProjectsFromApi() {
+      if (!isProjectsApiEnabled()) {
+        if (isMounted) {
+          setProjects([])
+          setLoadError('Configura VITE_API_BASE_URL para cargar proyectos reales desde la base de datos.')
+          setIsLoadingProjects(false)
+        }
+        return
+      }
+
+      try {
+        const apiProjects = await listProjects()
+        if (isMounted) {
+          setProjects(apiProjects)
+          setLoadError(null)
+        }
+      } catch (error) {
+        if (isMounted) {
+          setProjects([])
+          setLoadError(error instanceof Error ? error.message : 'No se pudieron cargar los proyectos.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingProjects(false)
+        }
+      }
+    }
+
+    void loadProjectsFromApi()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
-    return presentationProjects.filter((project) => {
+    return projects.filter((project) => {
       if (!normalizedQuery) {
         return true
       }
@@ -116,19 +155,43 @@ export function GalleryPage() {
 
       return searchableText.includes(normalizedQuery)
     })
-  }, [query])
+  }, [projects, query])
 
-  const handleLoadProject = (projectId: string) => {
-    const projectWasLoaded = loadPresentationProject(projectId)
-    if (projectWasLoaded) {
-      navigate(`/editor?project=${encodeURIComponent(projectId)}`)
+  const handleLoadProject = async (project: PresentationProject) => {
+    if (loadingProjectId) {
+      return
+    }
+
+    setLoadingProjectId(project.id)
+    setLoadError(null)
+
+    try {
+      const projectWasLoaded = await loadApiProjectIntoStore(project.id)
+      if (projectWasLoaded) {
+        navigate(`/editor?project=${encodeURIComponent(project.id)}`)
+        return
+      }
+
+      loadPresentationProjectData(project)
+      navigate(`/editor?project=${encodeURIComponent(project.id)}`)
+    } catch (error) {
+      const hasCachedEditorData = project.tracks.some((track) => track.elements.length > 0)
+      if (hasCachedEditorData) {
+        loadPresentationProjectData(project)
+        navigate(`/editor?project=${encodeURIComponent(project.id)}`)
+        return
+      }
+
+      setLoadError(error instanceof Error ? error.message : 'No se pudo cargar este proyecto.')
+    } finally {
+      setLoadingProjectId(null)
     }
   }
 
-  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>, projectId: string) => {
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>, project: PresentationProject) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      handleLoadProject(projectId)
+      void handleLoadProject(project)
     }
   }
 
@@ -178,15 +241,26 @@ export function GalleryPage() {
           />
         </div>
 
-        {visibleProjects.length > 0 ? (
+        {loadError ? (
+          <div className="mb-5 rounded-lg border border-[#7f1d1d] bg-[#2a1114] p-4 text-sm text-[#fecaca]">
+            {loadError}
+          </div>
+        ) : null}
+
+        {isLoadingProjects ? (
+          <div className="rounded-lg border border-dashed border-[#35353f] bg-[#15151b] p-10 text-center">
+            <p className="text-base font-medium">Cargando proyectos reales...</p>
+            <p className="mt-1 text-sm text-[#9ca3af]">Estamos trayendo la biblioteca desde la base de datos.</p>
+          </div>
+        ) : visibleProjects.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleProjects.map((project) => (
               <article
                 aria-label={`Cargar proyecto ${project.name}`}
                 className="transform-gpu cursor-pointer overflow-hidden rounded-xl border border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d11]"
                 key={project.id}
-                onClick={() => handleLoadProject(project.id)}
-                onKeyDown={(event) => handleCardKeyDown(event, project.id)}
+                onClick={() => void handleLoadProject(project)}
+                onKeyDown={(event) => handleCardKeyDown(event, project)}
                 role="button"
                 tabIndex={0}
               >
@@ -286,14 +360,15 @@ export function GalleryPage() {
                       {project.owner} · {project.collaborators} colaboradores · {project.resolution.w}x{project.resolution.h}
                     </span>
                     <button
+                      disabled={loadingProjectId === project.id}
                       className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#818cf8]"
                       onClick={(event) => {
                         event.stopPropagation()
-                        handleLoadProject(project.id)
+                        void handleLoadProject(project)
                       }}
                       type="button"
                     >
-                      Cargar
+                      {loadingProjectId === project.id ? 'Cargando...' : 'Cargar'}
                     </button>
                   </div>
                 </div>
@@ -302,9 +377,13 @@ export function GalleryPage() {
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[#35353f] bg-[#15151b] p-10 text-center">
-            <p className="text-base font-medium">No hay resultados para esta busqueda</p>
+            <p className="text-base font-medium">
+              {query.trim() ? 'No hay resultados para esta busqueda' : 'No hay proyectos en la biblioteca'}
+            </p>
             <p className="mt-1 text-sm text-[#9ca3af]">
-              Prueba con otro termino o limpia el campo de busqueda.
+              {query.trim()
+                ? 'Prueba con otro termino o limpia el campo de busqueda.'
+                : 'Cuando haya proyectos guardados en la base de datos apareceran aqui.'}
             </p>
           </div>
         )}

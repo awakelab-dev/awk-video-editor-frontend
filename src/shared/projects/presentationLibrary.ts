@@ -564,7 +564,14 @@ export function loadPresentationProject(projectId: string): boolean {
     return false
   }
 
+  loadPresentationProjectData(project)
+
+  return true
+}
+
+export function loadPresentationProjectData(project: PresentationProject): void {
   useEditorStore.setState({
+    projectId: project.id,
     projectName: project.name,
     duration: project.durationSeconds,
     resolution: { ...project.resolution },
@@ -576,6 +583,4 @@ export function loadPresentationProject(projectId: string): boolean {
     isPlaying: false,
     zoomLevel: 100,
   })
-
-  return true
 }
