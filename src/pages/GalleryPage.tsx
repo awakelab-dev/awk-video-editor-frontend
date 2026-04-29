@@ -21,6 +21,8 @@ import {
   type PresentationProjectStatus,
 } from "../shared/projects/presentationLibrary";
 import type { EditorElement, TextElement } from "../shared/types/editor";
+import { useAuthStore } from "../shared/auth/authStore";
+import { LogOut } from "lucide-react";
 
 type VisualFrameElement = Exclude<
   EditorElement,
@@ -452,6 +454,13 @@ function ProjectCard({
 
 export function GalleryPage() {
   const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -512,13 +521,20 @@ export function GalleryPage() {
               Biblioteca de Proyectos
             </h1>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              className="rounded-md border border-[#35353f] bg-[#25252e] px-4 py-2 text-sm text-[#f0f0f4] transition hover:bg-[#2e2e38]"
-              to="/login"
+          <div className="flex flex-wrap items-center gap-2">
+            {user && (
+              <span className="text-xs text-[#9ca3af]">
+                {user.name}
+              </span>
+            )}
+            <button
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#35353f] bg-[#25252e] px-4 py-2 text-sm text-[#f0f0f4] transition hover:bg-[#2e2e38]"
+              onClick={handleLogout}
+              type="button"
             >
-              Gestionar acceso
-            </Link>
+              <LogOut className="h-3.5 w-3.5" />
+              Cerrar sesión
+            </button>
             <Link
               className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#818cf8]"
               to="/editor"
