@@ -1,8 +1,13 @@
 import { CalendarDays, Clock3, PanelsTopLeft } from 'lucide-react'
 import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { isProjectsApiEnabled, listProjects, loadApiProjectIntoStore } from '../shared/api/projectsApi'
-import { loadPresentationProjectData, type PresentationProject } from '../shared/projects/presentationLibrary'
+import {
+  createProjectAndLoadIntoStore,
+  isProjectsApiEnabled,
+  listProjects,
+  loadApiProjectIntoStore,
+} from '../shared/api/projectsApi'
+import type { PresentationProject } from '../shared/projects/presentationLibrary'
 import type { EditorElement, TextElement } from '../shared/types/editor'
 
 type VisualFrameElement = Exclude<EditorElement, { type: 'audio' | 'transition' }>
@@ -95,6 +100,7 @@ export function GalleryPage() {
   const [query, setQuery] = useState('')
   const [projects, setProjects] = useState<PresentationProject[]>([])
   const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -169,22 +175,42 @@ export function GalleryPage() {
       const projectWasLoaded = await loadApiProjectIntoStore(project.id)
       if (projectWasLoaded) {
         navigate(`/editor?project=${encodeURIComponent(project.id)}`)
-        return
       }
-
-      loadPresentationProjectData(project)
-      navigate(`/editor?project=${encodeURIComponent(project.id)}`)
     } catch (error) {
-      const hasCachedEditorData = project.tracks.some((track) => track.elements.length > 0)
-      if (hasCachedEditorData) {
-        loadPresentationProjectData(project)
-        navigate(`/editor?project=${encodeURIComponent(project.id)}`)
-        return
-      }
-
       setLoadError(error instanceof Error ? error.message : 'No se pudo cargar este proyecto.')
     } finally {
       setLoadingProjectId(null)
+    }
+  }
+
+  const handleCreateProject = async () => {
+    if (isCreatingProject) {
+      return
+    }
+
+    if (!isProjectsApiEnabled()) {
+      navigate('/editor')
+      return
+    }
+
+    setIsCreatingProject(true)
+    setLoadError(null)
+
+    try {
+      const project = await createProjectAndLoadIntoStore({
+        name: 'Nuevo proyecto',
+        duration: 0,
+        resolution: {
+          w: 1920,
+          h: 1080,
+        },
+      })
+
+      navigate(`/editor?project=${encodeURIComponent(project.projectId)}`)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'No se pudo crear el proyecto.')
+    } finally {
+      setIsCreatingProject(false)
     }
   }
 
@@ -222,12 +248,14 @@ export function GalleryPage() {
             >
               Gestionar acceso
             </Link>
-            <Link
-              className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#818cf8]"
-              to="/editor"
+            <button
+              className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#818cf8] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isCreatingProject}
+              onClick={() => void handleCreateProject()}
+              type="button"
             >
-              Nuevo proyecto
-            </Link>
+              {isCreatingProject ? 'Creando...' : 'Nuevo proyecto'}
+            </button>
           </div>
         </header>
 

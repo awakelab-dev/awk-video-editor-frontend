@@ -2,11 +2,7 @@ import { useCallback } from 'react'
 import { useEditorStore } from '../../../shared/store'
 import { TEXT_TRACK_ID, TEXT_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { TextElement, Track } from '../../../shared/types/editor'
-import {
-  createTextElement,
-  isTextElementsApiEnabled,
-  type CreateTextElementRequest,
-} from '../../../shared/api/textElementsApi'
+import { createElementInProjectTrack, isElementsApiEnabled } from '../../../shared/api/projectsApi'
 import type { TextPreset } from '../types'
 
 const TEXT_PRESET_CONFIG: Record<
@@ -127,31 +123,6 @@ function createTextTrack(): Track {
   }
 }
 
-function toCreateTextRequestPayload(element: TextElement, trackId: string): CreateTextElementRequest {
-  return {
-    id: element.id,
-    type: 'text',
-    name: element.name,
-    startTime: element.startTime,
-    duration: element.duration,
-    x: element.x,
-    y: element.y,
-    width: element.width,
-    height: element.height,
-    rotation: element.rotation,
-    text: element.text,
-    fontFamily: element.fontFamily,
-    fontSize: element.fontSize,
-    fontWeight: element.fontWeight,
-    textColor: element.textColor,
-    backgroundColor: element.backgroundColor,
-    lineHeight: element.lineHeight,
-    letterSpacing: element.letterSpacing,
-    textAlign: element.textAlign,
-    trackId,
-  }
-}
-
 export function useAddTextElement() {
   const tracks = useEditorStore((state) => state.tracks)
   const projectId = useEditorStore((state) => state.projectId)
@@ -168,12 +139,12 @@ export function useAddTextElement() {
         createTrack(textTrack)
       }
       const sequence = textTrack.elements.filter((element) => element.type === 'text').length
-      const element = buildTextElement(sequence, options, currentTime)
-      if (isTextElementsApiEnabled()) {
-        await createTextElement(projectId, toCreateTextRequestPayload(element, textTrack.id))
+      let element = buildTextElement(sequence, options, currentTime)
+      if (isElementsApiEnabled() && projectId) {
+        element = (await createElementInProjectTrack(projectId, textTrack.id, element)) as TextElement
       }
       addElement(textTrack.id, element)
-      selectElement(element.id, 'element-library')
+      selectElement(element.id, 'element-library', textTrack.id)
       return element
     },
     [tracks, projectId, createTrack, addElement, selectElement, currentTime],

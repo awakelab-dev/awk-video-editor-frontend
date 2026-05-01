@@ -578,6 +578,7 @@ export function loadPresentationProjectData(project: PresentationProject): void 
     tracks: cloneTracks(project.tracks),
     assets: cloneAssets(project.assets),
     selectedElementId: null,
+    selectedTrackId: null,
     selectionSource: null,
     currentTime: 0,
     isPlaying: false,

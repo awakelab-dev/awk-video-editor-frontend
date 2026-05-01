@@ -273,6 +273,7 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
       if (!selectedTrackId) {
         return {
           selectedElementId: null,
+          selectedTrackId: null,
           selectionSource: null,
         }
       }
@@ -287,6 +288,7 @@ export const createTracksSlice: StateCreator<EditorStore, [], [], TracksSlice> =
             : track,
         ),
         selectedElementId: null,
+        selectedTrackId: null,
         selectionSource: null,
       }
     }),

@@ -20,7 +20,6 @@ export function EditorPage() {
 
     void loadApiProjectIntoStore(projectId).catch((error) => {
       console.error('No se pudo cargar el proyecto desde la API.', error)
-      loadPresentationProject(projectId)
     })
   }, [projectId])
 

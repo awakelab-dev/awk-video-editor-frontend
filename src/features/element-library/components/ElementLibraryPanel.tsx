@@ -19,7 +19,7 @@ import { useAddAudioElement } from "../hooks/useAddAudioElement";
 import { useAddImageElement } from "../hooks/useAddImageElement";
 import { useAddVideoElement } from "../hooks/useAddVideoElement";
 import { useAddTransitionElement } from "../hooks/useAddTransitionElement";
-import { getCreateTextErrorMessage } from "../../../shared/api/textElementsApi";
+import { getProjectsApiErrorMessage } from "../../../shared/api/projectsApi";
 import type {
   ElementLibraryCategory,
   ElementLibraryItem,
@@ -151,20 +151,20 @@ export function ElementLibraryPanel() {
     } catch (error) {
       console.error("[ElementLibrary] text preset failed", error);
       setFeedback(
-        `No se pudo añadir el texto: ${getCreateTextErrorMessage(error)}`,
+        `No se pudo añadir el texto: ${getProjectsApiErrorMessage(error)}`,
       );
       window.setTimeout(() => setFeedback(null), 3500);
     }
   }
 
-  function handleAddShapePreset(item: ElementLibraryItem) {
+  async function handleAddShapePreset(item: ElementLibraryItem) {
     if (!item.shapePreset) return;
     trackEvent("shape_preset_added", {
       source: "element-library",
       preset: item.shapePreset,
       itemId: item.id,
     });
-    const element = addShapeElement({
+    const element = await addShapeElement({
       preset: item.shapePreset,
       label: item.name,
     });
@@ -312,13 +312,14 @@ export function ElementLibraryPanel() {
                     aria-current={isRecentPreset}
                     onClick={() => {
                       console.log("[ElementLibrary] add element ->", item);
+                      void (async () => {
                       if (item.category === "text" && item.textPreset) {
                         void handleAddTextPreset(item);
                       } else if (
                         item.category === "shapes" &&
                         item.shapePreset
                       ) {
-                        handleAddShapePreset(item);
+                        await handleAddShapePreset(item);
                       } else if (
                         item.category === "transitions" &&
                         item.transitionPreset
@@ -328,7 +329,7 @@ export function ElementLibraryPanel() {
                           type: item.type,
                           category: item.category,
                         });
-                        addTransitionElement({
+                        await addTransitionElement({
                           preset: item.transitionPreset,
                           label: item.name,
                         });
@@ -338,7 +339,7 @@ export function ElementLibraryPanel() {
                           type: item.type,
                           category: item.category,
                         });
-                        const created = addAudioElement({
+                        const created = await addAudioElement({
                           assetId: item.id,
                           label: item.name,
                         });
@@ -349,7 +350,7 @@ export function ElementLibraryPanel() {
                           type: item.type,
                           category: item.category,
                         });
-                        const created = addImageElement({
+                        const created = await addImageElement({
                           assetId: item.id,
                           label: item.name,
                         });
@@ -360,7 +361,7 @@ export function ElementLibraryPanel() {
                           type: item.type,
                           category: item.category,
                         });
-                        const created = addVideoElement({
+                        const created = await addVideoElement({
                           assetId: item.id,
                           label: item.name,
                         });
@@ -373,6 +374,7 @@ export function ElementLibraryPanel() {
                         });
                         addElement(item);
                       }
+                    })();
                     }}
                   >
                     <div
@@ -594,7 +596,7 @@ export function ElementLibraryPanel() {
                                       error,
                                     );
                                     setFeedback(
-                                      `No se pudo añadir el texto: ${getCreateTextErrorMessage(error)}`,
+                                      `No se pudo añadir el texto: ${getProjectsApiErrorMessage(error)}`,
                                     );
                                     window.setTimeout(
                                       () => setFeedback(null),
@@ -602,7 +604,7 @@ export function ElementLibraryPanel() {
                                     );
                                   });
                                 } else if (activePayload.kind === "shape") {
-                                  addShapeElement({
+                                  void addShapeElement({
                                     preset: activePayload.preset,
                                     label: activePayload.label,
                                     dropPosition,
@@ -610,23 +612,23 @@ export function ElementLibraryPanel() {
                                 } else if (
                                   activePayload.kind === "transition"
                                 ) {
-                                  addTransitionElement({
+                                  void addTransitionElement({
                                     preset: activePayload.preset,
                                     label: activePayload.label,
                                   });
                                 } else if (activePayload.kind === "audio") {
-                                  addAudioElement({
+                                  void addAudioElement({
                                     assetId: activePayload.assetId,
                                     label: activePayload.label,
                                   });
                                 } else if (activePayload.kind === "image") {
-                                  addImageElement({
+                                  void addImageElement({
                                     assetId: activePayload.assetId,
                                     label: activePayload.label,
                                     dropPosition,
                                   });
                                 } else if (activePayload.kind === "video") {
-                                  addVideoElement({
+                                  void addVideoElement({
                                     assetId: activePayload.assetId,
                                     label: activePayload.label,
                                     dropPosition,
@@ -814,30 +816,36 @@ export function ElementLibraryPanel() {
 
                   if (type === "audio") {
                     setTimeout(() => {
-                      const created = addAudioElement({
+                      void (async () => {
+                      const created = await addAudioElement({
                         assetId: id,
                         label: file.name,
                       });
                       if (created)
                         setFeedback(`${file.name} añadido a pista de audio`);
+                    })();
                     }, 0);
                   } else if (type === "image") {
                     setTimeout(() => {
-                      const created = addImageElement({
+                      void (async () => {
+                      const created = await addImageElement({
                         assetId: id,
                         label: file.name,
                       });
                       if (created)
                         setFeedback(`${file.name} añadida al timeline`);
+                    })();
                     }, 0);
                   } else if (type === "video") {
                     setTimeout(() => {
-                      const created = addVideoElement({
+                      void (async () => {
+                      const created = await addVideoElement({
                         assetId: id,
                         label: file.name,
                       });
                       if (created)
                         setFeedback(`${file.name} añadido al timeline`);
+                    })();
                     }, 0);
                   }
                 }

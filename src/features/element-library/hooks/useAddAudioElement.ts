@@ -1,10 +1,12 @@
 import { useCallback } from 'react'
-import { createElement, isElementsApiEnabled } from '../../../shared/api/textElementsApi'
+import {
+  createElementInProjectTrack,
+  getProjectsApiErrorMessage,
+  isElementsApiEnabled,
+} from '../../../shared/api/projectsApi'
 import { useEditorStore } from '../../../shared/store'
+import { AUDIO_TRACK_ID, AUDIO_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { AudioElement, Track } from '../../../shared/types/editor'
-
-const AUDIO_TRACK_ID = 'track-audio'
-const AUDIO_TRACK_NAME = 'Audio'
 
 type AddAudioOptions = {
   assetId: string
@@ -16,6 +18,7 @@ function createAudioTrack(): Track {
   return {
     id: AUDIO_TRACK_ID,
     name: AUDIO_TRACK_NAME,
+    kind: 'audio',
     elements: [],
   }
 }
@@ -63,7 +66,7 @@ export function useAddAudioElement() {
   const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
 
   return useCallback(
-    (options: AddAudioOptions) => {
+    async (options: AddAudioOptions) => {
       const asset = assets.find((a) => a.id === options.assetId)
       if (!asset) {
         console.warn('[ElementLibrary][audio] asset not found', options)
@@ -77,28 +80,17 @@ export function useAddAudioElement() {
       }
 
       const sequence = audioTrack.elements.filter((element) => element.type === 'audio').length
-      const element = buildAudioElement(sequence, asset, options, currentTime)
-      if (isElementsApiEnabled()) {
-        void createElement(projectId, {
-          id: element.id,
-          type: 'audio',
-          name: element.name,
-          startTime: element.startTime,
-          duration: element.duration,
-          opacity: element.opacity,
-          source: element.source,
-          playbackRate: element.playbackRate,
-          volume: element.volume,
-          muted: element.muted,
-          fadeIn: element.fadeIn,
-          fadeOut: element.fadeOut,
-          trackId: audioTrack.id,
-        }).catch((error) => {
-          console.error('[ElementLibrary][audio] create api failed', error)
-        })
+      let element = buildAudioElement(sequence, asset, options, currentTime)
+      if (isElementsApiEnabled() && projectId) {
+        try {
+          element = (await createElementInProjectTrack(projectId, audioTrack.id, element)) as AudioElement
+        } catch (error) {
+          console.error('[ElementLibrary][audio] create api failed', getProjectsApiErrorMessage(error))
+          return null
+        }
       }
       addElement(audioTrack.id, element)
-      selectElement(element.id, 'element-library')
+      selectElement(element.id, 'element-library', audioTrack.id)
       console.log('[ElementLibrary][audio] created', { trackId: audioTrack.id, element, assetId: asset.id })
 
       // If duration is not provided, load audio metadata and update the element duration.

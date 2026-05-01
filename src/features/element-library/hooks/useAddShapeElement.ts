@@ -1,5 +1,9 @@
 import { useCallback } from "react";
-import { createElement, isElementsApiEnabled } from "../../../shared/api/textElementsApi";
+import {
+  createElementInProjectTrack,
+  getProjectsApiErrorMessage,
+  isElementsApiEnabled,
+} from "../../../shared/api/projectsApi";
 import { useEditorStore } from "../../../shared/store";
 import {
   MEDIA_TRACK_ID,
@@ -127,7 +131,7 @@ export function useAddShapeElement() {
   const currentTime = useEditorStore((state) => state.currentTime);
 
   return useCallback(
-    (options: AddShapeOptions = {}) => {
+    async (options: AddShapeOptions = {}) => {
       let mediaTrack = tracks.find((track) => track.id === MEDIA_TRACK_ID);
       if (!mediaTrack) {
         mediaTrack = createMediaTrack();
@@ -137,24 +141,17 @@ export function useAddShapeElement() {
       const sequence = mediaTrack.elements.filter(
         (element) => element.type === "shape",
       ).length;
-      const element = buildShapeElement(sequence, options, currentTime);
-      if (isElementsApiEnabled()) {
-        void createElement(projectId, {
-          id: element.id,
-          type: "shape",
-          name: element.name,
-          startTime: element.startTime,
-          duration: element.duration,
-          opacity: element.opacity,
-          x: element.x,
-          y: element.y,
-          trackId: mediaTrack.id,
-        }).catch((error) => {
-          console.error("[ElementLibrary][shape] create api failed", error);
-        });
+      let element = buildShapeElement(sequence, options, currentTime);
+      if (isElementsApiEnabled() && projectId) {
+        try {
+          element = (await createElementInProjectTrack(projectId, mediaTrack.id, element)) as ShapeElement;
+        } catch (error) {
+          console.error("[ElementLibrary][shape] create api failed", getProjectsApiErrorMessage(error));
+          return null;
+        }
       }
       addElement(mediaTrack.id, element);
-      selectElement(element.id, "element-library");
+      selectElement(element.id, "element-library", mediaTrack.id);
       return element;
     },
     [tracks, projectId, createTrack, addElement, selectElement, currentTime],

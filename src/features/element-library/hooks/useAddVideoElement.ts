@@ -1,5 +1,9 @@
 import { useCallback } from "react";
-import { createElement, isElementsApiEnabled } from "../../../shared/api/textElementsApi";
+import {
+  createElementInProjectTrack,
+  getProjectsApiErrorMessage,
+  isElementsApiEnabled,
+} from "../../../shared/api/projectsApi";
 import { useEditorStore } from "../../../shared/store";
 import {
   MEDIA_TRACK_ID,
@@ -101,7 +105,7 @@ export function useAddVideoElement() {
   );
 
   return useCallback(
-    (options: AddVideoOptions) => {
+    async (options: AddVideoOptions) => {
       const asset = assets.find((a) => a.id === options.assetId);
       if (!asset) {
         console.warn("[ElementLibrary][video] asset not found", options);
@@ -116,39 +120,23 @@ export function useAddVideoElement() {
       const sequence = mediaTrack.elements.filter(
         (element) => element.type === "video",
       ).length;
-      const element = buildVideoElement(
+      let element = buildVideoElement(
         sequence,
         asset,
         options,
         resolution,
         options.startTime ?? currentTime,
       );
-      if (isElementsApiEnabled()) {
-        void createElement(projectId, {
-          id: element.id,
-          type: "video",
-          name: element.name,
-          startTime: element.startTime,
-          duration: element.duration,
-          opacity: element.opacity,
-          x: element.x,
-          y: element.y,
-          width: element.width,
-          height: element.height,
-          rotation: element.rotation,
-          source: element.source,
-          trimStart: element.trimStart,
-          trimEnd: element.trimEnd,
-          playbackRate: element.playbackRate,
-          volume: element.volume,
-          muted: element.muted,
-          trackId: mediaTrack.id,
-        }).catch((error) => {
-          console.error("[ElementLibrary][video] create api failed", error);
-        });
+      if (isElementsApiEnabled() && projectId) {
+        try {
+          element = (await createElementInProjectTrack(projectId, mediaTrack.id, element)) as VideoElement;
+        } catch (error) {
+          console.error("[ElementLibrary][video] create api failed", getProjectsApiErrorMessage(error));
+          return null;
+        }
       }
       addElement(mediaTrack.id, element);
-      selectElement(element.id, "element-library");
+      selectElement(element.id, "element-library", mediaTrack.id);
       console.log("[ElementLibrary][video] created", {
         trackId: mediaTrack.id,
         element,

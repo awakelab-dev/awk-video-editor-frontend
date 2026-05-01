@@ -1,5 +1,9 @@
 import { useCallback } from 'react'
-import { createElement, isElementsApiEnabled } from '../../../shared/api/textElementsApi'
+import {
+  createElementInProjectTrack,
+  getProjectsApiErrorMessage,
+  isElementsApiEnabled,
+} from '../../../shared/api/projectsApi'
 import { useEditorStore } from '../../../shared/store'
 import { MEDIA_TRACK_ID, MEDIA_TRACK_NAME } from '../../../shared/store/defaultTracks'
 import type { ImageElement, Track } from '../../../shared/types/editor'
@@ -82,7 +86,7 @@ export function useAddImageElement() {
   const updateElementProperty = useEditorStore((state) => state.updateElementProperty)
 
   return useCallback(
-    (options: AddImageOptions) => {
+    async (options: AddImageOptions) => {
       const asset = assets.find((a) => a.id === options.assetId)
       if (!asset) {
         console.warn('[ElementLibrary][image] asset not found', options)
@@ -96,29 +100,17 @@ export function useAddImageElement() {
       }
 
       const sequence = mediaTrack.elements.filter((element) => element.type === 'image').length
-      const element = buildImageElement(sequence, asset, options, resolution, options.startTime ?? currentTime)
-      if (isElementsApiEnabled()) {
-        void createElement(projectId, {
-          id: element.id,
-          type: 'image',
-          name: element.name,
-          startTime: element.startTime,
-          duration: element.duration,
-          opacity: element.opacity,
-          x: element.x,
-          y: element.y,
-          width: element.width,
-          height: element.height,
-          rotation: element.rotation,
-          source: element.source,
-          fit: element.fit,
-          trackId: mediaTrack.id,
-        }).catch((error) => {
-          console.error('[ElementLibrary][image] create api failed', error)
-        })
+      let element = buildImageElement(sequence, asset, options, resolution, options.startTime ?? currentTime)
+      if (isElementsApiEnabled() && projectId) {
+        try {
+          element = (await createElementInProjectTrack(projectId, mediaTrack.id, element)) as ImageElement
+        } catch (error) {
+          console.error('[ElementLibrary][image] create api failed', getProjectsApiErrorMessage(error))
+          return null
+        }
       }
       addElement(mediaTrack.id, element)
-      selectElement(element.id, 'element-library')
+      selectElement(element.id, 'element-library', mediaTrack.id)
       console.log('[ElementLibrary][image] created', { trackId: mediaTrack.id, element, assetId: asset.id })
 
       if (!asset.width || !asset.height) {
