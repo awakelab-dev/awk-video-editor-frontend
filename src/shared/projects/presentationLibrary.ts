@@ -579,3 +579,22 @@ export function loadPresentationProject(projectId: string): boolean {
 
   return true
 }
+
+export function renamePresentationProject(projectId: string, newName: string): boolean {
+  const project = presentationProjects.find((item) => item.id === projectId)
+
+  if (!project) {
+    return false
+  }
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    return false
+  }
+
+  project.name = trimmedName
+  project.lastEditedAt = new Date().toISOString()
+
+  return true
+}
+

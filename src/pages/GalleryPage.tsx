@@ -3,18 +3,20 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Files,
   FolderOpen,
   Grid3X3,
   LayoutList,
   LogOut,
   Moon,
+  MoreVertical,
   PanelsTopLeft,
+  Pencil,
   Play,
   Settings,
   Share2,
   SquareLibrary,
   Sun,
-  Files,
 } from "lucide-react";
 import {
   type CSSProperties,
@@ -27,6 +29,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   loadPresentationProject,
   presentationProjects,
+  renamePresentationProject,
   type PresentationProject,
   type PresentationProjectStatus,
 } from "../shared/projects/presentationLibrary";
@@ -241,26 +244,68 @@ interface ProjectCardProps {
   project: PresentationProject;
   viewMode: ViewMode;
   isDarkMode: boolean;
+  canManage: boolean;
   onLoad: (id: string) => void;
   formatDuration: (seconds: number) => string;
   formatDate: (isoDate: string) => string;
+  onRename: (id: string, newName: string) => void;
 }
 
 function ProjectCard({
   project,
   viewMode,
   isDarkMode,
+  canManage,
   onLoad,
   formatDuration,
   formatDate,
+  onRename,
 }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(project.name);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const previewTime = useAnimatedPreview(project, isHovered);
   const frameElements = isHovered
     ? getFrameElementsAtTime(project, previewTime)
     : getFirstFrameElements(project);
 
-  const handleClick = () => onLoad(project.id);
+  useEffect(() => {
+    setEditName(project.name);
+  }, [project.name]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handleOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [isMenuOpen]);
+
+  const handleClick = () => {
+    if (isMenuOpen || isEditingName) return;
+    onLoad(project.id);
+  };
+
+  const commitRename = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== project.name) {
+      onRename(project.id, trimmed);
+    }
+    setIsEditingName(false);
+  };
+
+  const cancelRename = () => {
+    setEditName(project.name);
+    setIsEditingName(false);
+  };
 
   const renderPreview = () => (
     <div className="pointer-events-none absolute inset-0 z-[1]">
@@ -363,6 +408,110 @@ function ProjectCard({
     </>
   );
 
+  const renderTitleBlock = () => (
+    <div className="flex items-start justify-between gap-2">
+      {isEditingName ? (
+        <div className="flex flex-1 items-center gap-1.5">
+          <input
+            autoFocus
+            className={`flex-1 rounded border px-2 py-1 text-sm outline-none transition focus:border-[#6366f1] ${
+              isDarkMode
+                ? "border-[#2a2a34] bg-[#0f0f14] text-[#f0f0f4]"
+                : "border-[#d5dbe8] bg-white text-[#111827]"
+            }`}
+            onChange={(event) => setEditName(event.target.value)}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={(event) => event.currentTarget.select()}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Enter") commitRename();
+              if (event.key === "Escape") cancelRename();
+            }}
+            type="text"
+            value={editName}
+          />
+          <button
+            className="rounded bg-[#6366f1] px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-[#818cf8]"
+            onClick={(event) => {
+              event.stopPropagation();
+              commitRename();
+            }}
+            type="button"
+          >
+            OK
+          </button>
+          <button
+            className={`rounded px-2 py-1 text-[10px] font-semibold transition ${
+              isDarkMode
+                ? "bg-[#25252e] text-[#d1d5db] hover:bg-[#2e2e38]"
+                : "bg-[#eef2ff] text-[#475569] hover:bg-[#dbe4ff]"
+            }`}
+            onClick={(event) => {
+              event.stopPropagation();
+              cancelRename();
+            }}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-tight">
+          {project.name}
+        </h2>
+      )}
+
+      {canManage && !isEditingName ? (
+        <div className="relative flex-shrink-0" ref={menuRef}>
+          <button
+            aria-label={`Abrir menu de ${project.name}`}
+            className={`rounded p-1 transition ${
+              isDarkMode
+                ? "text-[#6b7280] hover:bg-[#25252e] hover:text-white"
+                : "text-[#64748b] hover:bg-[#eef2ff] hover:text-[#0f172a]"
+            }`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsMenuOpen((current) => !current);
+            }}
+            type="button"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {isMenuOpen ? (
+            <div
+              className={`absolute right-0 top-full z-30 mt-1 w-52 rounded-md border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.18)] ${
+                isDarkMode
+                  ? "border-[#2a2a34] bg-[#1a1a22]"
+                  : "border-[#d5dbe8] bg-white"
+              }`}
+              onClick={(event) => event.stopPropagation()}
+              role="menu"
+            >
+              <button
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition ${
+                  isDarkMode
+                    ? "text-[#d1d5db] hover:bg-[#25252e]"
+                    : "text-[#334155] hover:bg-[#f8faff]"
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsMenuOpen(false);
+                  setIsEditingName(true);
+                  setEditName(project.name);
+                }}
+                type="button"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Renombrar
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+
   if (viewMode === "list") {
     return (
       <article
@@ -380,7 +529,10 @@ function ProjectCard({
           }
         }}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseLeave={() => {
+          setIsHovered(false);
+          setIsMenuOpen(false);
+        }}
         role="button"
         tabIndex={0}
       >
@@ -393,9 +545,7 @@ function ProjectCard({
             {renderOverlay()}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-semibold leading-tight">
-              {project.name}
-            </h2>
+            {renderTitleBlock()}
             <p
               className={`mt-1 line-clamp-2 text-sm ${isDarkMode ? "text-[#9ca3af]" : "text-[#64748b]"}`}
             >
@@ -454,7 +604,10 @@ function ProjectCard({
         }
       }}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsMenuOpen(false);
+      }}
       role="button"
       tabIndex={0}
     >
@@ -467,11 +620,7 @@ function ProjectCard({
       </div>
 
       <div className="space-y-3 p-4">
-        <div>
-          <h2 className="text-base font-semibold leading-tight">
-            {project.name}
-          </h2>
-        </div>
+        {renderTitleBlock()}
 
         <div
           className={`flex items-center justify-between gap-2 border-t pt-3 ${isDarkMode ? "border-[#2a2a34]" : "border-[#e2e8f0]"}`}
@@ -517,6 +666,7 @@ export function GalleryPage() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(
     null,
   );
@@ -556,7 +706,13 @@ export function GalleryPage() {
 
   const allGalleryProjects = useMemo(
     () => [...presentationProjects, ...classroomThemeProjects],
-    [classroomThemeProjects],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [classroomThemeProjects, refreshKey],
+  );
+
+  const managedProjectIds = useMemo(
+    () => new Set(presentationProjects.map((project) => project.id)),
+    [refreshKey],
   );
 
   const totalProjects = allGalleryProjects.length;
@@ -614,6 +770,12 @@ export function GalleryPage() {
     }
 
     navigate("/editor");
+  };
+
+  const handleRenameProject = (projectId: string, newName: string) => {
+    if (renamePresentationProject(projectId, newName)) {
+      setRefreshKey((current) => current + 1);
+    }
   };
 
   const formatDuration = (seconds: number) => {
@@ -1056,9 +1218,11 @@ export function GalleryPage() {
                     project={project}
                     viewMode={viewMode}
                     isDarkMode={isDarkMode}
+                    canManage={managedProjectIds.has(project.id)}
                     onLoad={handleLoadProject}
                     formatDuration={formatDuration}
                     formatDate={formatDate}
+                    onRename={handleRenameProject}
                   />
                 ))}
               </div>
@@ -1096,6 +1260,7 @@ export function GalleryPage() {
           </div>
         </section>
       </section>
+
     </main>
   );
 }
