@@ -2,7 +2,6 @@ import {
   createProjectElement,
   getProjectsApiErrorMessage,
   isElementsApiEnabled,
-  persistProjectChanges,
   ProjectsApiError,
   type CreateProjectElementPayload,
 } from './projectsApi'
@@ -142,8 +141,7 @@ export function getCreateElementErrorMessage(error: unknown): string {
 }
 
 function stripLegacyFields(payload: CreateElementRequest): CreateProjectElementPayload {
-  const { id, trackId, ...rest } = payload
-  void id
+  const { trackId, ...rest } = payload
   void trackId
   return rest as CreateProjectElementPayload
 }
@@ -161,23 +159,8 @@ export async function createElement(
   projectId: string,
   payload: CreateElementRequest,
 ): Promise<ElementResponse> {
-  const created = await createProjectElement(projectId, stripLegacyFields(payload))
+  const created = await createProjectElement(projectId, stripLegacyFields(payload), payload.trackId)
   updateRevision(created.projectId || projectId, created.revision)
-
-  await persistProjectChanges([
-    {
-      type: 'element.add-to-track',
-      trackId: payload.trackId,
-      elementId: created.elementId,
-      index: 0,
-    },
-    {
-      type: 'selection.update',
-      selectedElementId: created.elementId,
-      selectedTrackId: payload.trackId,
-      selectionSource: 'element-library',
-    },
-  ])
 
   return {
     _id: created.elementId,

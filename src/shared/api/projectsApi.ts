@@ -102,24 +102,6 @@ export type ProjectChange =
       elementId: string
       trackId: string
     }
-  | {
-      type: 'element.delete'
-      elementId: string
-    }
-  | {
-      type: 'track.add'
-      track: {
-        name: string
-        type?: 'video' | 'image' | 'audio' | 'text' | 'shape' | 'mixed'
-        index?: number
-      }
-    }
-  | {
-      type: 'selection.update'
-      selectedElementId: string | null
-      selectedTrackId?: string | null
-      selectionSource: SelectionSource | null
-    }
 
 export type ProjectPatchPayload = {
   revision: number
@@ -819,12 +801,24 @@ export async function getProject(projectId: string): Promise<ApiProject | null> 
 }
 
 export async function getProjectEditorState(projectId: string): Promise<InitialEditorState> {
-  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}`)
+  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}/editor-state`)
   const editorState = normalizeInitialEditorState(unwrapData(body))
   return {
     ...editorState,
     projectId: editorState.projectId || projectId,
   }
+}
+
+export async function listProjectElements(projectId: string): Promise<unknown[]> {
+  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}/elements`)
+  const data = unwrapData(body)
+  const elements = isRecord(data) && Array.isArray(data.elements) ? data.elements : data
+
+  if (!Array.isArray(elements)) {
+    throw new ProjectsApiError('La API no devolvio una lista de elementos valida.')
+  }
+
+  return elements
 }
 
 export async function createProject(payload: CreateProjectPayload): Promise<CreateProjectResult> {
@@ -874,12 +868,29 @@ export async function createProjectAndLoadIntoStore(payload: CreateProjectPayloa
 }
 
 export async function loadApiProjectIntoStore(projectId: string): Promise<boolean> {
-  const editorState = await getProjectEditorState(projectId)
-  loadInitialEditorStateIntoStore(editorState)
+  const [project, editorState, elements] = await Promise.all([
+    getProject(projectId).catch(() => null),
+    getProjectEditorState(projectId),
+    listProjectElements(projectId).catch(() => []),
+  ])
+  const mergedEditorState: InitialEditorState = {
+    ...editorState,
+    projectId: editorState.projectId || project?.projectId || projectId,
+    revision: editorState.revision || project?.revision || 0,
+    sessionId: editorState.sessionId ?? project?.sessionId,
+    project: {
+      projectName: project?.name ?? editorState.project.projectName,
+      duration: project?.duration ?? editorState.project.duration,
+      resolution: project?.resolution ?? editorState.project.resolution,
+    },
+    elements: editorState.elements ?? elements,
+  }
+
+  loadInitialEditorStateIntoStore(mergedEditorState)
   updateApiSession({
-    projectId: editorState.projectId || projectId,
-    revision: editorState.revision,
-    sessionId: editorState.sessionId,
+    projectId: mergedEditorState.projectId || projectId,
+    revision: mergedEditorState.revision,
+    sessionId: mergedEditorState.sessionId,
   })
   return true
 }
@@ -950,8 +961,7 @@ export async function persistProjectChanges(changes: ProjectChange[]): Promise<P
 }
 
 function sanitizeElementPayload(payload: CreateProjectElementPayload): CreateProjectElementPayload {
-  const { id: _id, _id: legacyId, projectId, trackId, effects, ...rest } = payload
-  void _id
+  const { _id: legacyId, projectId, trackId, effects, ...rest } = payload
   void legacyId
   void projectId
   void trackId
@@ -981,8 +991,12 @@ function normalizeCreateElementResult(raw: unknown, fallbackProjectId: string): 
 export async function createProjectElement(
   projectId: string,
   payload: CreateProjectElementPayload,
+  trackId?: string,
 ): Promise<CreateProjectElementResult> {
-  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}/elements`, {
+  const payloadTrackId = typeof payload.trackId === 'string' ? payload.trackId : undefined
+  const queryTrackId = trackId ?? payloadTrackId
+  const query = queryTrackId ? `?trackId=${encodeURIComponent(queryTrackId)}` : ''
+  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}/elements${query}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1001,8 +1015,7 @@ function toApiOpacity(opacity: number): number {
 }
 
 export function toCreateProjectElementPayload(element: EditorElement): CreateProjectElementPayload {
-  const { id: _id, effects, ...payload } = element
-  void _id
+  const { effects, ...payload } = element
   void effects
   return {
     ...payload,
@@ -1016,27 +1029,13 @@ export async function createElementInProjectTrack(
   element: EditorElement,
   selectionSource: SelectionSource = 'element-library',
 ): Promise<EditorElement> {
-  const created = await createProjectElement(projectId, toCreateProjectElementPayload(element))
+  void selectionSource
+  const created = await createProjectElement(projectId, toCreateProjectElementPayload(element), trackId)
   updateApiSession({
     projectId: created.projectId || projectId,
     revision: created.revision,
     sessionId: created.sessionId ?? useEditorStore.getState().sessionId,
   })
-
-  await persistProjectChanges([
-    {
-      type: 'element.add-to-track',
-      trackId,
-      elementId: created.elementId,
-      index: 0,
-    },
-    {
-      type: 'selection.update',
-      selectedElementId: created.elementId,
-      selectedTrackId: trackId,
-      selectionSource,
-    },
-  ])
 
   return {
     ...element,
