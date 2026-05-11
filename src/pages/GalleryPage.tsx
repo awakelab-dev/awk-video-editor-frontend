@@ -32,7 +32,6 @@ import {
 } from "../shared/projects/presentationLibrary";
 import type { EditorElement, TextElement } from "../shared/types/editor";
 import { useAuthStore } from "../shared/auth/authStore";
-import { LogOut } from "lucide-react";
 
 type VisualFrameElement = Exclude<
   EditorElement,
@@ -503,6 +502,12 @@ export function GalleryPage() {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
+  const userInitials = user?.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "PL";
 
   const handleLogout = () => {
     logout();
@@ -691,13 +696,13 @@ export function GalleryPage() {
                   : "border-[#c7d2fe] bg-white text-[#4338ca]"
               }`}
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              title="Usuario PL"
+              title={user?.name ?? "Usuario"}
               type="button"
             >
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full ${isDarkMode ? "bg-[#1b1b29]" : "bg-[#eef2ff]"}`}
               >
-                PL
+                {userInitials}
               </span>
             </button>
             {isUserMenuOpen ? (
@@ -715,7 +720,7 @@ export function GalleryPage() {
                       ? "text-[#fca5a5] hover:bg-[#24171b]"
                       : "text-[#b91c1c] hover:bg-[#fef2f2]"
                   }`}
-                  onClick={() => setIsUserMenuOpen(false)}
+                  onClick={handleLogout}
                   role="menuitem"
                   type="button"
                 >
