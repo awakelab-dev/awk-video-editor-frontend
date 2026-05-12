@@ -193,7 +193,6 @@ function useAnimatedPreview(project: PresentationProject, isHovered: boolean) {
 
   useEffect(() => {
     if (!isHovered) {
-      setPreviewTime(0);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -234,7 +233,7 @@ function useAnimatedPreview(project: PresentationProject, isHovered: boolean) {
     };
   }, [isHovered, project]);
 
-  return previewTime;
+  return isHovered ? previewTime : 0;
 }
 
 interface ProjectCardProps {
@@ -502,15 +501,16 @@ export function GalleryPage() {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
-  const userInitials = user?.name
+  const userDisplayName = user?.username ?? user?.email ?? "Usuario";
+  const userInitials = userDisplayName
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase() || "PL";
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login", { replace: true });
   };
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -696,7 +696,7 @@ export function GalleryPage() {
                   : "border-[#c7d2fe] bg-white text-[#4338ca]"
               }`}
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              title={user?.name ?? "Usuario"}
+              title={userDisplayName}
               type="button"
             >
               <span

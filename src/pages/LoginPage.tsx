@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Clapperboard, Eye, EyeOff, Info } from 'lucide-react'
-import { DEMO_CREDENTIALS, useAuthStore } from '../shared/auth/authStore'
+import { Clapperboard, Eye, EyeOff } from 'lucide-react'
+import { useAuthStore } from '../shared/auth/authStore'
 
 type LocationState = { from?: { pathname?: string } }
 
@@ -25,7 +25,6 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [showDemoHelp, setShowDemoHelp] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
   const validate = () => {
@@ -37,8 +36,6 @@ export function LoginPage() {
     }
     if (!password) {
       nextErrors.password = 'La contraseña es obligatoria'
-    } else if (password.length < 6) {
-      nextErrors.password = 'Mínimo 6 caracteres'
     }
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
@@ -59,13 +56,6 @@ export function LoginPage() {
     }
 
     navigate(redirectTo, { replace: true })
-  }
-
-  const fillDemoCredentials = (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail)
-    setPassword(demoPassword)
-    setErrors({})
-    setAuthError(null)
   }
 
   const inputClassName = (hasError?: string) =>
@@ -242,40 +232,6 @@ export function LoginPage() {
               Regístrate
             </button>
           </p>
-        </div>
-
-        {/* Demo accounts helper outside the card */}
-        <div className="mt-4 rounded-xl border border-[#2a2a34] bg-[#0f0f15]/70 p-3 backdrop-blur-sm">
-          <button
-            className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-[#9ca3af] transition hover:text-[#f0f0f4]"
-            onClick={() => setShowDemoHelp((prev) => !prev)}
-            type="button"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Info className="h-3.5 w-3.5" />
-              Cuentas de demostración
-            </span>
-            <span className="text-[10px] text-[#6b7280]">{showDemoHelp ? 'Ocultar' : 'Mostrar'}</span>
-          </button>
-          {showDemoHelp && (
-            <ul className="mt-3 space-y-2">
-              {DEMO_CREDENTIALS.map((credential) => (
-                <li key={credential.email}>
-                  <button
-                    className="flex w-full items-center justify-between gap-3 rounded border border-[#2a2a34] bg-[#1a1a20] px-2.5 py-2 text-left text-[11px] text-[#d1d5db] transition hover:border-[#6366f1] hover:bg-[#1f1f2d]"
-                    onClick={() => fillDemoCredentials(credential.email, credential.password)}
-                    type="button"
-                  >
-                    <span className="flex flex-col">
-                      <span className="font-mono text-[11px]">{credential.email}</span>
-                      <span className="font-mono text-[10px] text-[#6b7280]">contraseña: {credential.password}</span>
-                    </span>
-                    <span className="text-[10px] font-medium text-[#6366f1]">Usar</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
     </main>
