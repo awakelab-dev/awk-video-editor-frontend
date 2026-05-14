@@ -8,6 +8,21 @@ function normalizeOpacity(opacity: number) {
   return opacity <= 1 ? opacity : opacity / 100
 }
 
+function isTransparentColor(value: string | undefined) {
+  if (!value) {
+    return true
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return (
+    normalized === 'transparent' ||
+    normalized === '#0000' ||
+    normalized === '#00000000' ||
+    normalized === 'rgba(0,0,0,0)' ||
+    normalized === 'rgba(0, 0, 0, 0)'
+  )
+}
+
 function CanvasTextPreview() {
   const selectedElementId = useEditorStore((state) => state.selectedElementId)
   const tracks = useEditorStore((state) => state.tracks)
@@ -24,6 +39,8 @@ function CanvasTextPreview() {
     <p
       data-testid="canvas-text"
       style={{
+        backgroundColor: selectedText.backgroundColor,
+        borderRadius: !isTransparentColor(selectedText.backgroundColor) ? '9999px' : '0px',
         color: selectedText.textColor,
         fontFamily: selectedText.fontFamily,
         fontSize: `${selectedText.fontSize}px`,
@@ -253,9 +270,18 @@ describe('InspectorPanel', () => {
 
     expect(screen.getByTestId('canvas-text').style.transform).toBe('rotate(30deg)')
 
+    fireEvent.click(screen.getByLabelText('Etiqueta texto'))
+
+    const updatedText = useEditorStore.getState().tracks[0]?.elements[0]
+    expect(updatedText?.type).toBe('text')
+    if (updatedText?.type === 'text') {
+      expect(updatedText.backgroundColor).toBe('#1f2937')
+    }
+
     fireEvent.change(screen.getByLabelText('Texto'), { target: { value: 'Nuevo copy' } })
 
     expect(screen.getByTestId('canvas-text').textContent).toBe('Nuevo copy')
+    expect(screen.getByTestId('canvas-text').style.borderRadius).toBe('9999px')
   })
 
   it('actualiza el canvas al cambiar propiedades del cuadrado', () => {
