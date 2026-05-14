@@ -1,16 +1,30 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { ApiError, loginUser, logoutUser, type AuthUser } from './authApi'
+import {
+  ApiError,
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  registerUser,
+  type AuthUser,
+  type RegisterInput,
+} from './authApi'
+
+type AuthActionResult = { ok: true } | { ok: false; error: string }
 
 type AuthState = {
   user: AuthUser | null
   accessToken: string | null
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>
+  isRestoringSession: boolean
+  login: (email: string, password: string) => Promise<AuthActionResult>
+  register: (input: RegisterInput) => Promise<AuthActionResult>
   logout: () => Promise<void>
+  restoreSession: () => Promise<void>
+  clearAuth: () => void
 }
 
-function getAuthErrorMessage(error: unknown) {
+function getAuthErrorMessage(error: unknown, fallbackMessage = 'No se pudo conectar con el servidor de autenticación') {
   if (error instanceof ApiError) {
     if (error.body.errors?.length) {
       return error.body.errors.map((validationError) => validationError.message).join(' ')
@@ -27,7 +41,19 @@ function getAuthErrorMessage(error: unknown) {
     return error.message || 'No se pudo iniciar sesión'
   }
 
-  return 'No se pudo conectar con el servidor de autenticación'
+  return fallbackMessage
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+function clearSession() {
+  return {
+    user: null,
+    accessToken: null,
+    isAuthenticated: false,
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -36,10 +62,11 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      isRestoringSession: false,
       login: async (email, password) => {
         try {
           const auth = await loginUser({
-            email: email.trim().toLowerCase(),
+            email: normalizeEmail(email),
             password,
           })
 
@@ -51,8 +78,38 @@ export const useAuthStore = create<AuthState>()(
 
           return { ok: true }
         } catch (error) {
-          set({ user: null, accessToken: null, isAuthenticated: false })
+          set(clearSession())
           return { ok: false, error: getAuthErrorMessage(error) }
+        }
+      },
+      register: async ({ email, username, password }) => {
+        try {
+          const normalizedEmail = normalizeEmail(email)
+
+          await registerUser({
+            email: normalizedEmail,
+            username: username.trim(),
+            password,
+          })
+
+          const auth = await loginUser({
+            email: normalizedEmail,
+            password,
+          })
+
+          set({
+            user: auth.user,
+            accessToken: auth.accessToken,
+            isAuthenticated: true,
+          })
+
+          return { ok: true }
+        } catch (error) {
+          set(clearSession())
+          return {
+            ok: false,
+            error: getAuthErrorMessage(error, 'No se pudo completar el registro'),
+          }
         }
       },
       logout: async () => {
@@ -63,9 +120,32 @@ export const useAuthStore = create<AuthState>()(
             await logoutUser(token)
           }
         } finally {
-          set({ user: null, accessToken: null, isAuthenticated: false })
+          set(clearSession())
         }
       },
+      restoreSession: async () => {
+        const token = get().accessToken
+
+        if (!token) {
+          set({ ...clearSession(), isRestoringSession: false })
+          return
+        }
+
+        set({ isRestoringSession: true })
+
+        try {
+          const user = await getCurrentUser(token)
+          set({
+            user,
+            accessToken: token,
+            isAuthenticated: true,
+            isRestoringSession: false,
+          })
+        } catch {
+          set({ ...clearSession(), isRestoringSession: false })
+        }
+      },
+      clearAuth: () => set(clearSession()),
     }),
     {
       name: 'videoforge-auth',
@@ -81,6 +161,7 @@ export const useAuthStore = create<AuthState>()(
           user: state?.accessToken ? state.user ?? null : null,
           accessToken: state?.accessToken ?? null,
           isAuthenticated: Boolean(state?.accessToken),
+          isRestoringSession: false,
         }
       },
     },

@@ -36,6 +36,12 @@ export type LoginCredentials = {
   password: string
 }
 
+export type RegisterInput = {
+  email: string
+  username: string
+  password: string
+}
+
 export class ApiError extends Error {
   status: number
   body: ApiResponse<unknown>
@@ -48,7 +54,11 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:4000'
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ??
+  import.meta.env.VITE_API_BASE_URL ??
+  'http://127.0.0.1:4000'
+).replace(/\/$/, '')
 
 async function apiFetch<T>(
   path: string,
@@ -64,13 +74,32 @@ async function apiFetch<T>(
     },
   })
 
-  const body = (await response.json()) as ApiResponse<T>
+  const contentType = response.headers.get('content-type')
+  const body = contentType?.includes('application/json')
+    ? ((await response.json()) as ApiResponse<T>)
+    : ({
+        success: response.ok,
+        message: response.statusText || 'API error',
+      } as ApiResponse<T>)
 
   if (!response.ok) {
     throw new ApiError(body.message || 'API error', response.status, body as ApiResponse<unknown>)
   }
 
   return body
+}
+
+export async function registerUser(input: RegisterInput) {
+  const result = await apiFetch<{ user: AuthUser }>('/api/v1/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+
+  if (!result.data?.user) {
+    throw new Error('Register response did not include user')
+  }
+
+  return result.data.user
 }
 
 export async function loginUser(credentials: LoginCredentials) {
