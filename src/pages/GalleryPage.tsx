@@ -651,12 +651,13 @@ export function GalleryPage() {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
-  const userInitials = user?.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "PL";
+  const userInitials =
+    user?.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "PL";
 
   const handleLogout = () => {
     logout();
@@ -772,12 +773,6 @@ export function GalleryPage() {
     navigate("/editor");
   };
 
-  const handleRenameProject = (projectId: string, newName: string) => {
-    if (renamePresentationProject(projectId, newName)) {
-      setRefreshKey((current) => current + 1);
-    }
-  };
-
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const rest = seconds % 60;
@@ -841,12 +836,13 @@ export function GalleryPage() {
           </h2>
         </div>
         <div className="order-2 flex flex-wrap items-center gap-2 md:order-3">
-          <Link
+          <button
             className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#818cf8]"
-            to="/editor"
+            onClick={() => setIsNewProjectModalOpen(true)}
+            type="button"
           >
             Nuevo proyecto
-          </Link>
+          </button>
           <div className="relative" ref={userMenuRef}>
             <button
               aria-expanded={isUserMenuOpen}
@@ -1260,7 +1256,6 @@ export function GalleryPage() {
           </div>
         </section>
       </section>
-
     </main>
   );
 }
