@@ -256,6 +256,33 @@ function unwrapData(body: unknown): unknown {
   return body
 }
 
+function hasElementData(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.length > 0
+  }
+
+  if (isRecord(value)) {
+    return Object.keys(value).length > 0
+  }
+
+  return false
+}
+
+function hasEditorStateData(raw: unknown): raw is UnknownRecord {
+  if (!isRecord(raw)) {
+    return false
+  }
+
+  return (
+    Array.isArray(raw.tracks) ||
+    hasElementData(raw.elements) ||
+    Array.isArray(raw.assets) ||
+    isRecord(raw.assets) ||
+    isRecord(raw.playback) ||
+    isRecord(raw.selection)
+  )
+}
+
 function getString(record: UnknownRecord, keys: string[], fallback = ''): string {
   for (const key of keys) {
     const value = record[key]
@@ -498,7 +525,15 @@ function normalizeElement(raw: unknown): EditorElement | null {
 function getElementMap(projectRecord: UnknownRecord): UnknownRecord {
   const elements = projectRecord.elements
   if (isRecord(elements)) {
-    return elements
+    return Object.entries(elements).reduce<UnknownRecord>((accumulator, [elementId, element]) => {
+      if (!isRecord(element)) {
+        return accumulator
+      }
+
+      const recordId = getString(element, ['id', 'elementId', '_id'])
+      accumulator[elementId] = recordId ? element : { id: elementId, ...element }
+      return accumulator
+    }, {})
   }
 
   if (Array.isArray(elements)) {
@@ -544,32 +579,82 @@ function getTrackKind(trackId: string, elements: EditorElement[], rawTrack: Unkn
   return 'media'
 }
 
-function normalizeTrackElements(track: UnknownRecord, projectElements: UnknownRecord): EditorElement[] {
-  const embeddedElements = getNestedArray(track, ['elements'])
-  if (embeddedElements.length > 0) {
-    return embeddedElements
-      .map(normalizeElement)
-      .filter((element): element is EditorElement => element !== null)
-      .sort((a, b) => a.startTime - b.startTime)
+function normalizeElementList(rawElements: unknown[]): EditorElement[] {
+  const seenElementIds = new Set<string>()
+  return rawElements
+    .map(normalizeElement)
+    .filter((element): element is EditorElement => element !== null)
+    .filter((element) => {
+      if (seenElementIds.has(element.id)) {
+        return false
+      }
+      seenElementIds.add(element.id)
+      return true
+    })
+    .sort((a, b) => a.startTime - b.startTime)
+}
+
+function doesElementTypeMatchTrack(elementType: string, trackId: string, track: UnknownRecord): boolean {
+  if (trackId !== TEXT_TRACK_ID && trackId !== AUDIO_TRACK_ID && trackId !== MEDIA_TRACK_ID) {
+    return false
   }
 
-  const elementIds = getNestedArray(track, ['elementIds']).filter((elementId): elementId is string => typeof elementId === 'string')
-  return elementIds
-    .map((elementId) => normalizeElement(projectElements[elementId]))
-    .filter((element): element is EditorElement => element !== null)
-    .sort((a, b) => a.startTime - b.startTime)
+  const kind = getTrackKind(trackId, [], track)
+  if (kind === 'text') {
+    return elementType === 'text'
+  }
+
+  if (kind === 'audio') {
+    return elementType === 'audio'
+  }
+
+  return elementType === 'image' || elementType === 'video' || elementType === 'shape' || elementType === 'transition'
+}
+
+function doesElementBelongToTrack(element: unknown, trackId: string, track: UnknownRecord): boolean {
+  if (!isRecord(element)) {
+    return false
+  }
+
+  const explicitTrackId = getString(element, ['trackId', 'track_id'])
+  if (explicitTrackId) {
+    return explicitTrackId === trackId
+  }
+
+  return doesElementTypeMatchTrack(getString(element, ['type']), trackId, track)
+}
+
+function normalizeTrackElements(track: UnknownRecord, projectElements: UnknownRecord, trackId: string): EditorElement[] {
+  const embeddedElements = getNestedArray(track, ['elements'])
+  const embeddedElementRecords = embeddedElements.filter(isRecord)
+  const elementIds = [
+    ...getNestedArray(track, ['elementIds']),
+    ...embeddedElements.filter((element): element is string => typeof element === 'string'),
+  ].filter((elementId): elementId is string => typeof elementId === 'string')
+
+  if (embeddedElementRecords.length > 0 || elementIds.length > 0) {
+    return normalizeElementList([...embeddedElementRecords, ...elementIds.map((elementId) => projectElements[elementId])])
+  }
+
+  return normalizeElementList(
+    Object.values(projectElements).filter((element) => doesElementBelongToTrack(element, trackId, track)),
+  )
 }
 
 function normalizeTracks(projectRecord: UnknownRecord): Track[] {
   const rawTracks = getNestedArray(projectRecord, ['tracks'])
+  const projectElements = getElementMap(projectRecord)
+
   if (rawTracks.length === 0) {
-    return buildDefaultTracks()
+    return buildDefaultTracks().map((track) => ({
+      ...track,
+      elements: normalizeTrackElements({ id: track.id, name: track.name, kind: track.kind }, projectElements, track.id),
+    }))
   }
 
-  const projectElements = getElementMap(projectRecord)
   const tracks = rawTracks.filter(isRecord).map((track, index) => {
     const id = getString(track, ['id', 'trackId', '_id'], `track-${index + 1}`)
-    const elements = normalizeTrackElements(track, projectElements)
+    const elements = normalizeTrackElements(track, projectElements, id)
 
     return {
       id,
@@ -584,7 +669,15 @@ function normalizeTracks(projectRecord: UnknownRecord): Track[] {
   }
 
   const existingTrackIds = new Set(tracks.map((track) => track.id))
-  return [...tracks, ...buildDefaultTracks().filter((track) => !existingTrackIds.has(track.id))]
+  return [
+    ...tracks,
+    ...buildDefaultTracks()
+      .filter((track) => !existingTrackIds.has(track.id))
+      .map((track) => ({
+        ...track,
+        elements: normalizeTrackElements({ id: track.id, name: track.name, kind: track.kind }, projectElements, track.id),
+      })),
+  ]
 }
 
 function getAssetRecords(projectRecord: UnknownRecord): UnknownRecord[] {
@@ -795,9 +888,13 @@ export async function listProjects(): Promise<PresentationProject[]> {
     .filter((project): project is PresentationProject => project !== null)
 }
 
-export async function getProject(projectId: string): Promise<ApiProject | null> {
+async function getProjectDocument(projectId: string): Promise<unknown> {
   const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}`)
-  return normalizeApiProject(unwrapData(body))
+  return unwrapData(body)
+}
+
+export async function getProject(projectId: string): Promise<ApiProject | null> {
+  return normalizeApiProject(await getProjectDocument(projectId))
 }
 
 export async function getProjectEditorState(projectId: string): Promise<InitialEditorState> {
@@ -868,11 +965,24 @@ export async function createProjectAndLoadIntoStore(payload: CreateProjectPayloa
 }
 
 export async function loadApiProjectIntoStore(projectId: string): Promise<boolean> {
-  const [project, editorState, elements] = await Promise.all([
-    getProject(projectId).catch(() => null),
-    getProjectEditorState(projectId),
-    listProjectElements(projectId).catch(() => []),
-  ])
+  const rawProject = await getProjectDocument(projectId).catch(() => null)
+  const project = normalizeApiProject(rawProject)
+  let editorState: InitialEditorState
+
+  if (hasEditorStateData(rawProject)) {
+    editorState = normalizeInitialEditorState(rawProject)
+  } else {
+    const [legacyEditorState, elements] = await Promise.all([
+      getProjectEditorState(projectId),
+      listProjectElements(projectId).catch(() => []),
+    ])
+
+    editorState = {
+      ...legacyEditorState,
+      elements: hasElementData(legacyEditorState.elements) ? legacyEditorState.elements : elements,
+    }
+  }
+
   const mergedEditorState: InitialEditorState = {
     ...editorState,
     projectId: editorState.projectId || project?.projectId || projectId,
@@ -883,7 +993,6 @@ export async function loadApiProjectIntoStore(projectId: string): Promise<boolea
       duration: project?.duration ?? editorState.project.duration,
       resolution: project?.resolution ?? editorState.project.resolution,
     },
-    elements: editorState.elements ?? elements,
   }
 
   loadInitialEditorStateIntoStore(mergedEditorState)
