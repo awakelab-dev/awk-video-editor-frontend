@@ -62,6 +62,8 @@ export type TextElement = VisualElementBase & {
   lineHeight: number
   letterSpacing: number
   textAlign: 'left' | 'center' | 'right' | 'justify'
+  labelBorderColor?: string
+  labelBorderWidth?: number
 }
 
 export type ShapeElement = VisualElementBase & {
