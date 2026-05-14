@@ -104,6 +104,7 @@ const textFontOptions = [
   { label: "Courier New", value: "'Courier New', monospace" },
   { label: "Impact", value: "Impact, sans-serif" },
 ];
+const SHAPE_CORNER_RADIUS_EXPONENT = 1.7;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -204,6 +205,18 @@ function withAlphaHex(baseHexColor: string, alpha: number) {
     .toString(16)
     .padStart(2, "0");
   return `${safeHex}${alphaHex}`;
+}
+
+function shapeCornerPercentToRadiusRatio(percent: number) {
+  const normalizedPercent = clamp(percent, 0, 100) / 100;
+  return Math.pow(normalizedPercent, SHAPE_CORNER_RADIUS_EXPONENT);
+}
+
+function shapeCornerRadiusRatioToPercent(radiusRatio: number) {
+  const safeRatio = clamp(radiusRatio, 0, 1);
+  return Math.round(
+    Math.pow(safeRatio, 1 / SHAPE_CORNER_RADIUS_EXPONENT) * 100,
+  );
 }
 
 function findSelectedElementContext(
@@ -417,6 +430,17 @@ export function InspectorPanel() {
     selectedElement?.type === "audio" ? selectedElement : null;
   const selectedShapeElement =
     selectedElement?.type === "shape" ? selectedElement : null;
+  const selectedShapeMaxCornerRadius = selectedShapeElement
+    ? Math.max(
+        1,
+        Math.min(selectedShapeElement.width, selectedShapeElement.height) / 2,
+      )
+    : 1;
+  const selectedShapeCornerRadiusPercent = selectedShapeElement
+    ? shapeCornerRadiusRatioToPercent(
+        selectedShapeElement.cornerRadius / selectedShapeMaxCornerRadius,
+      )
+    : 0;
   const isSquareElement =
     selectedShapeElement?.shapeType === "rectangle"
       ? Math.abs(selectedShapeElement.width - selectedShapeElement.height) <
@@ -1286,6 +1310,35 @@ export function InspectorPanel() {
                 value={selectedShapeElement.fillColor}
               />
             </PropertyRow>
+
+            {selectedShapeElement.shapeType === "rectangle" && (
+              <PropertyRow label="Esquinas">
+                <input
+                  aria-label="Esquinas redondeadas"
+                  className="w-full"
+                  max={100}
+                  min={0}
+                  onChange={(event) => {
+                    const nextPercent = Number(event.target.value);
+                    if (!Number.isFinite(nextPercent)) {
+                      return;
+                    }
+
+                    const safePercent = clamp(nextPercent, 0, 100);
+                    const nextCornerRadius =
+                      shapeCornerPercentToRadiusRatio(safePercent) *
+                      selectedShapeMaxCornerRadius;
+                    updateSelectedProperty("cornerRadius", nextCornerRadius);
+                  }}
+                  step={1}
+                  type="range"
+                  value={selectedShapeCornerRadiusPercent}
+                />
+                <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                  {selectedShapeCornerRadiusPercent}%
+                </span>
+              </PropertyRow>
+            )}
 
             <PropertyRow label="Opacidad">
               <input
