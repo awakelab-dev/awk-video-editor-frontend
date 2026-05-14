@@ -196,7 +196,6 @@ function useAnimatedPreview(project: PresentationProject, isHovered: boolean) {
 
   useEffect(() => {
     if (!isHovered) {
-      setPreviewTime(0);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -237,7 +236,7 @@ function useAnimatedPreview(project: PresentationProject, isHovered: boolean) {
     };
   }, [isHovered, project]);
 
-  return previewTime;
+  return isHovered ? previewTime : 0;
 }
 
 interface ProjectCardProps {
@@ -270,10 +269,6 @@ function ProjectCard({
   const frameElements = isHovered
     ? getFrameElementsAtTime(project, previewTime)
     : getFirstFrameElements(project);
-
-  useEffect(() => {
-    setEditName(project.name);
-  }, [project.name]);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -674,6 +669,11 @@ export function GalleryPage() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectSubject, setNewProjectSubject] = useState<string>(
+    subjectFolders[0].name,
+  );
   const [expandedSubjects, setExpandedSubjects] = useState<
     Record<string, boolean>
   >({
@@ -713,7 +713,7 @@ export function GalleryPage() {
 
   const managedProjectIds = useMemo(
     () => new Set(presentationProjects.map((project) => project.id)),
-    [refreshKey],
+    [],
   );
 
   const totalProjects = allGalleryProjects.length;
@@ -770,6 +770,24 @@ export function GalleryPage() {
       return;
     }
 
+    navigate("/editor");
+  };
+
+  const handleRenameProject = (projectId: string, newName: string) => {
+    if (renamePresentationProject(projectId, newName)) {
+      setRefreshKey((current) => current + 1);
+    }
+  };
+
+  const handleCreateNewProject = () => {
+    const payload = {
+      name: newProjectName.trim() || "Proyecto sin titulo",
+      subject: newProjectSubject,
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem("awk:new-project-config", JSON.stringify(payload));
+    setIsNewProjectModalOpen(false);
     navigate("/editor");
   };
 
@@ -1256,6 +1274,96 @@ export function GalleryPage() {
           </div>
         </section>
       </section>
+
+      {isNewProjectModalOpen ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/45 px-4">
+          <div
+            className={`w-full max-w-md rounded-xl border p-5 shadow-2xl ${
+              isDarkMode
+                ? "border-[#2a2a34] bg-[#15151b]"
+                : "border-[#d5dbe8] bg-white"
+            }`}
+          >
+            <h3 className="text-lg font-semibold">Nuevo proyecto</h3>
+            <p
+              className={`mt-1 text-sm ${isDarkMode ? "text-[#9ca3af]" : "text-[#64748b]"}`}
+            >
+              Configura los datos iniciales antes de abrir el editor.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label
+                  className={`mb-1 block text-xs font-medium uppercase tracking-wide ${
+                    isDarkMode ? "text-[#9ca3af]" : "text-[#64748b]"
+                  }`}
+                >
+                  Nombre del proyecto
+                </label>
+                <input
+                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:border-[#6366f1] ${
+                    isDarkMode
+                      ? "border-[#2a2a34] bg-[#0f0f14] text-[#f0f0f4]"
+                      : "border-[#d5dbe8] bg-[#f8f9fd] text-[#111827]"
+                  }`}
+                  onChange={(event) => setNewProjectName(event.target.value)}
+                  placeholder="Ej: Tema 2 - Matematicas"
+                  type="text"
+                  value={newProjectName}
+                />
+              </div>
+
+              <div>
+                <label
+                  className={`mb-1 block text-xs font-medium uppercase tracking-wide ${
+                    isDarkMode ? "text-[#9ca3af]" : "text-[#64748b]"
+                  }`}
+                >
+                  Asignatura
+                </label>
+                <select
+                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:border-[#6366f1] ${
+                    isDarkMode
+                      ? "border-[#2a2a34] bg-[#0f0f14] text-[#f0f0f4]"
+                      : "border-[#d5dbe8] bg-[#f8f9fd] text-[#111827]"
+                  }`}
+                  onChange={(event) =>
+                    setNewProjectSubject(event.target.value)
+                  }
+                  value={newProjectSubject}
+                >
+                  {subjectFolders.map((subject) => (
+                    <option key={subject.name} value={subject.name}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className={`rounded-md border px-3 py-2 text-sm transition ${
+                  isDarkMode
+                    ? "border-[#35353f] bg-[#25252e] text-[#f0f0f4] hover:bg-[#2e2e38]"
+                    : "border-[#d5dbe8] bg-white text-[#334155] hover:bg-[#f8faff]"
+                }`}
+                onClick={() => setIsNewProjectModalOpen(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded-md border border-[#4f46e5] bg-[#6366f1] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#818cf8]"
+                onClick={handleCreateNewProject}
+                type="button"
+              >
+                Crear y abrir
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
