@@ -37,6 +37,9 @@ describe('AppToolbar', () => {
   })
 
   beforeEach(() => {
+    localStorage.clear()
+    delete document.documentElement.dataset.editorTheme
+
     useEditorStore.setState({
       tracks: [
         {
@@ -71,6 +74,19 @@ describe('AppToolbar', () => {
 
     const deleteButtons = screen.getAllByLabelText('Eliminar')
     expect(deleteButtons.every((button) => button.hasAttribute('disabled'))).toBe(true)
+  })
+
+  it('permite cambiar entre modo noche y modo claro desde configuración', () => {
+    render(<AppToolbar />)
+
+    fireEvent.click(screen.getByLabelText('Configuración'))
+    expect(screen.getByText('Modo noche')).toBeTruthy()
+    expect(screen.getByText('Modo claro')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Modo claro'))
+
+    expect(document.documentElement.dataset.editorTheme).toBe('light')
+    expect(localStorage.getItem('awk:editor-theme')).toBe('light')
   })
 })
 

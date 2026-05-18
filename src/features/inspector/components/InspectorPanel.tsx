@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   ChevronDown,
@@ -6,6 +6,7 @@ import {
   Minus,
   Plus,
   RotateCw,
+  Settings2,
   SlidersHorizontal,
   Square,
   Type,
@@ -31,6 +32,7 @@ type EditorElementValue<K extends EditorElementKey> = ValueOfUnion<
 type SectionProps = {
   title: string;
   icon: ReactNode;
+  headerAction?: ReactNode;
   children: ReactNode;
 };
 
@@ -54,18 +56,17 @@ type NumericFieldProps = {
   widthClassName?: string;
 };
 
-function PropertySection({ title, icon, children }: SectionProps) {
+function PropertySection({ title, icon, headerAction, children }: SectionProps) {
   return (
     <section className="border-b border-[#2a2a34]">
-      <button
-        aria-expanded
+      <div
         className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs font-semibold text-[#9ca3af] transition hover:bg-white/[0.02]"
-        type="button"
       >
         {icon}
         <span className="flex-1">{title}</span>
+        {headerAction}
         <ChevronDown className="h-[15px] w-[15px] opacity-50" />
-      </button>
+      </div>
       <div className="space-y-1.5 px-3.5 pb-3.5 pt-1.5">{children}</div>
     </section>
   );
@@ -88,7 +89,7 @@ const inputClassName =
   "h-7 rounded-[4px] border border-[#2a2a34] bg-[#25252e] px-2 text-xs text-[#f0f0f4] outline-none transition focus:border-[#6366f1]";
 const numericInputClassName = `${inputClassName} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 const stepperButtonClassName =
-  "flex h-full w-6 items-center justify-center bg-[#212129] text-[#7f8695] transition hover:bg-[#2a2a34] hover:text-[#c3c7cf]";
+  "inspector-stepper-button flex h-full w-6 items-center justify-center bg-[#2a2a34] text-[#aeb4c0] transition hover:bg-[#353543] hover:text-[#f0f0f4]";
 const inspectorEffectOptions: Array<{ label: string; value: EditorEffect }> =
   EFFECT_PRESETS.map((preset) => ({
     label: preset.charAt(0).toUpperCase() + preset.slice(1),
@@ -410,9 +411,12 @@ function NumericField({
 export function InspectorPanel() {
   const selectedElementId = useEditorStore((state) => state.selectedElementId);
   const tracks = useEditorStore((state) => state.tracks);
+  const currentTime = useEditorStore((state) => state.currentTime);
   const updateElementProperty = useEditorStore(
     (state) => state.updateElementProperty,
   );
+  const [isSlideTextSettingsOpen, setIsSlideTextSettingsOpen] = useState(false);
+  const slideTextSettingsPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const selectedElementContext = useMemo(
     () => findSelectedElementContext(selectedElementId, tracks),
@@ -479,6 +483,67 @@ export function InspectorPanel() {
     );
   };
 
+  const activeSlideTextContexts = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        track.elements
+          .filter(
+            (element) =>
+              element.type === "text" &&
+              currentTime >= element.startTime &&
+              currentTime < element.startTime + element.duration,
+          )
+          .map((element) => ({ trackId: track.id, elementId: element.id })),
+      ),
+    [tracks, currentTime],
+  );
+
+  const updateSlideTextProperty = (
+    property: "fontFamily" | "fontSize",
+    value: string | number,
+  ) => {
+    activeSlideTextContexts.forEach((textContext) => {
+      if (property === "fontFamily") {
+        updateElementProperty(
+          textContext.trackId,
+          textContext.elementId,
+          "fontFamily",
+          value as EditorElementValue<"fontFamily">,
+        );
+        return;
+      }
+
+      updateElementProperty(
+        textContext.trackId,
+        textContext.elementId,
+        "fontSize",
+        value as EditorElementValue<"fontSize">,
+      );
+    });
+  };
+
+  useEffect(() => {
+    if (!isSlideTextSettingsOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (!slideTextSettingsPopoverRef.current?.contains(target)) {
+        setIsSlideTextSettingsOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [isSlideTextSettingsOpen]);
+
   const renderEffectsSelector = (elementId: string) => {
     const selectedEffect =
       selectedElement?.id === elementId
@@ -538,6 +603,60 @@ export function InspectorPanel() {
         ) : selectedTextElement ? (
           <PropertySection
             icon={<Type className="h-[15px] w-[15px]" />}
+            headerAction={
+              <div className="relative" ref={slideTextSettingsPopoverRef}>
+                <button
+                  aria-label="Configuracion texto slide"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] border border-[#2a2a34] bg-[#25252e] text-[#9ca3af] transition hover:bg-[#2e2e38] hover:text-[#f0f0f4]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsSlideTextSettingsOpen((previous) => !previous);
+                  }}
+                  title="Configurar todos los textos de la slide"
+                  type="button"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                </button>
+                {isSlideTextSettingsOpen && (
+                  <div className="absolute right-0 top-7 z-30 w-[190px] rounded-[8px] border border-[#2a2a34] bg-[#1a1a20] p-2.5 shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">
+                      Cambiar propiedades de toda la slide
+                    </p>
+                    <label className="mb-1 block text-[10px] text-[#6b7280]">
+                      Fuente
+                    </label>
+                    <select
+                      aria-label="Fuente slide"
+                      className={`${inputClassName} mb-2 w-full appearance-none pr-6`}
+                      onChange={(event) =>
+                        updateSlideTextProperty("fontFamily", event.target.value)
+                      }
+                      value={selectedTextElement.fontFamily}
+                    >
+                      {textFontOptions.map((fontOption) => (
+                        <option key={fontOption.value} value={fontOption.value}>
+                          {fontOption.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="mb-1 block text-[10px] text-[#6b7280]">
+                      Tamaño
+                    </label>
+                    <NumericField
+                      ariaLabel="Tamano slide"
+                      min={1}
+                      onValueChange={(nextValue) =>
+                        updateSlideTextProperty("fontSize", nextValue)
+                      }
+                      step={1}
+                      value={selectedTextElement.fontSize}
+                      widthClassName="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            }
             title="Texto"
           >
             {(() => {
@@ -592,6 +711,24 @@ export function InspectorPanel() {
                 value={selectedTextElement.fontSize}
               />
               <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+            </PropertyRow>
+
+            <PropertyRow label="Negrita">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-[#9ca3af]">
+                <input
+                  aria-label="Negrita texto"
+                  checked={selectedTextElement.fontWeight >= 600}
+                  className="h-4 w-4 accent-[#6366f1]"
+                  onChange={(event) =>
+                    updateSelectedProperty(
+                      "fontWeight",
+                      event.target.checked ? 700 : 400,
+                    )
+                  }
+                  type="checkbox"
+                />
+                Activar negrita
+              </label>
             </PropertyRow>
 
             <PropertyRow label="Color">

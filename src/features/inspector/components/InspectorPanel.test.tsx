@@ -90,7 +90,7 @@ function CanvasSquarePreview() {
   )
 }
 
-function buildTextElement(): TextElement {
+function buildTextElement(overrides: Partial<TextElement> = {}): TextElement {
   return {
     backgroundColor: '#00000000',
     duration: 10,
@@ -113,6 +113,7 @@ function buildTextElement(): TextElement {
     width: 220,
     x: 100,
     y: 80,
+    ...overrides,
   }
 }
 
@@ -442,6 +443,77 @@ describe('InspectorPanel', () => {
       expect(updatedVideo.volume).toBeCloseTo(0.3, 3)
       expect(updatedVideo.rotation).toBe(40)
     }
+  })
+
+  it('permite cambiar fuente y tamaño para todos los textos activos de la slide', () => {
+    const textElementA = buildTextElement({
+      id: 'text-1',
+      name: 'Texto A',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 12,
+      startTime: 0,
+      duration: 10,
+    })
+    const textElementB = buildTextElement({
+      id: 'text-2',
+      name: 'Texto B',
+      fontFamily: 'Verdana, sans-serif',
+      fontSize: 16,
+      x: 280,
+      startTime: 0,
+      duration: 10,
+    })
+    const textElementC = buildTextElement({
+      id: 'text-3',
+      name: 'Texto C',
+      fontFamily: 'Tahoma, sans-serif',
+      fontSize: 20,
+      x: 420,
+      startTime: 20,
+      duration: 5,
+    })
+
+    useEditorStore.setState({
+      currentTime: 1,
+      selectedElementId: textElementA.id,
+      selectionSource: 'canvas',
+      tracks: [
+        {
+          elements: [textElementA, textElementB, textElementC],
+          id: 'track-text',
+          name: 'Texto',
+        },
+      ],
+    })
+
+    render(<InspectorPanel />)
+
+    fireEvent.click(screen.getByLabelText('Configuracion texto slide'))
+    fireEvent.change(screen.getByLabelText('Fuente slide'), {
+      target: { value: "'Courier New', monospace" },
+    })
+    fireEvent.change(screen.getByLabelText('Tamano slide'), {
+      target: { value: '28' },
+    })
+
+    const updatedTexts = useEditorStore
+      .getState()
+      .tracks[0]
+      ?.elements.filter((element): element is TextElement => element.type === 'text')
+
+    expect(updatedTexts).toHaveLength(3)
+    expect(updatedTexts?.find((element) => element.id === 'text-1')?.fontFamily).toBe(
+      "'Courier New', monospace",
+    )
+    expect(updatedTexts?.find((element) => element.id === 'text-2')?.fontFamily).toBe(
+      "'Courier New', monospace",
+    )
+    expect(updatedTexts?.find((element) => element.id === 'text-1')?.fontSize).toBe(28)
+    expect(updatedTexts?.find((element) => element.id === 'text-2')?.fontSize).toBe(28)
+    expect(updatedTexts?.find((element) => element.id === 'text-3')?.fontFamily).toBe(
+      'Tahoma, sans-serif',
+    )
+    expect(updatedTexts?.find((element) => element.id === 'text-3')?.fontSize).toBe(20)
   })
 
   it('guarda el efecto seleccionado en el estado del elemento', () => {

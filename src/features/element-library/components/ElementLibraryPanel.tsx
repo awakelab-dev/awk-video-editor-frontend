@@ -427,8 +427,14 @@ export function ElementLibraryPanel() {
                     </div>
 
                     <div className="px-0.5 pt-1.5">
-                      <p className="truncate text-[11px] text-[#e5e7eb]">{item.name}</p>
-                      {item.description && <p className="truncate text-[10px] text-[#6b7280]">{item.description}</p>}
+                      <p className="element-library-item-name truncate text-[11px] text-[#e5e7eb]">
+                        {item.name}
+                      </p>
+                      {item.description && (
+                        <p className="element-library-item-description truncate text-[10px] text-[#6b7280]">
+                          {item.description}
+                        </p>
+                      )}
                     </div>
                   </article>
                 )
