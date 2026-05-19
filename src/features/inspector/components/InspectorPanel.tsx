@@ -104,6 +104,7 @@ const textFontOptions = [
   { label: "Courier New", value: "'Courier New', monospace" },
   { label: "Impact", value: "Impact, sans-serif" },
 ];
+const SHAPE_CORNER_RADIUS_EXPONENT = 1.7;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -119,6 +120,103 @@ function opacityToPercent(opacity: number) {
 function volumeToPercent(volume: number) {
   const safeVolume = Number.isFinite(volume) ? volume : 1;
   return Math.round(clamp(safeVolume, 0, 1) * 100);
+}
+
+function isTransparentColor(value: string | undefined) {
+  if (!value) {
+    return true;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "transparent" ||
+    normalized === "#0000" ||
+    normalized === "#00000000" ||
+    normalized === "rgba(0,0,0,0)" ||
+    normalized === "rgba(0, 0, 0, 0)"
+  );
+}
+
+function normalizeHexColor(value: string | undefined) {
+  if (!value) {
+    return "#1f2937";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const shortHexMatch = normalized.match(/^#([0-9a-f]{3})$/i);
+  if (shortHexMatch) {
+    const [r, g, b] = shortHexMatch[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+
+  const shortHexAlphaMatch = normalized.match(/^#([0-9a-f]{4})$/i);
+  if (shortHexAlphaMatch) {
+    const [r, g, b] = shortHexAlphaMatch[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+
+  const longHexMatch = normalized.match(/^#([0-9a-f]{6})$/i);
+  if (longHexMatch) {
+    return `#${longHexMatch[1]}`;
+  }
+
+  const longHexAlphaMatch = normalized.match(/^#([0-9a-f]{8})$/i);
+  if (longHexAlphaMatch) {
+    return `#${longHexAlphaMatch[1].slice(0, 6)}`;
+  }
+
+  return "#1f2937";
+}
+
+function extractAlpha(value: string | undefined) {
+  if (!value) {
+    return 1;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const shortHexAlphaMatch = normalized.match(/^#([0-9a-f]{4})$/i);
+  if (shortHexAlphaMatch) {
+    const alphaHex = shortHexAlphaMatch[1][3];
+    return clamp(parseInt(`${alphaHex}${alphaHex}`, 16) / 255, 0, 1);
+  }
+
+  const longHexAlphaMatch = normalized.match(/^#([0-9a-f]{8})$/i);
+  if (longHexAlphaMatch) {
+    return clamp(parseInt(longHexAlphaMatch[1].slice(6, 8), 16) / 255, 0, 1);
+  }
+
+  const rgbaMatch = normalized.match(
+    /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([01]?(?:\.\d+)?)\s*\)$/i,
+  );
+  if (rgbaMatch) {
+    return clamp(Number(rgbaMatch[1]), 0, 1);
+  }
+
+  return 1;
+}
+
+function withAlphaHex(baseHexColor: string, alpha: number) {
+  const safeHex = normalizeHexColor(baseHexColor);
+  const safeAlpha = clamp(alpha, 0, 1);
+  if (safeAlpha >= 0.999) {
+    return safeHex;
+  }
+  const alphaHex = Math.round(clamp(alpha, 0, 1) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${safeHex}${alphaHex}`;
+}
+
+function shapeCornerPercentToRadiusRatio(percent: number) {
+  const normalizedPercent = clamp(percent, 0, 100) / 100;
+  return Math.pow(normalizedPercent, SHAPE_CORNER_RADIUS_EXPONENT);
+}
+
+function shapeCornerRadiusRatioToPercent(radiusRatio: number) {
+  const safeRatio = clamp(radiusRatio, 0, 1);
+  return Math.round(
+    Math.pow(safeRatio, 1 / SHAPE_CORNER_RADIUS_EXPONENT) * 100,
+  );
 }
 
 function findSelectedElementContext(
@@ -332,6 +430,17 @@ export function InspectorPanel() {
     selectedElement?.type === "audio" ? selectedElement : null;
   const selectedShapeElement =
     selectedElement?.type === "shape" ? selectedElement : null;
+  const selectedShapeMaxCornerRadius = selectedShapeElement
+    ? Math.max(
+        1,
+        Math.min(selectedShapeElement.width, selectedShapeElement.height) / 2,
+      )
+    : 1;
+  const selectedShapeCornerRadiusPercent = selectedShapeElement
+    ? shapeCornerRadiusRatioToPercent(
+        selectedShapeElement.cornerRadius / selectedShapeMaxCornerRadius,
+      )
+    : 0;
   const isSquareElement =
     selectedShapeElement?.shapeType === "rectangle"
       ? Math.abs(selectedShapeElement.width - selectedShapeElement.height) <
@@ -431,6 +540,22 @@ export function InspectorPanel() {
             icon={<Type className="h-[15px] w-[15px]" />}
             title="Texto"
           >
+            {(() => {
+              const labelEnabled = !isTransparentColor(
+                selectedTextElement.backgroundColor,
+              );
+              const labelBackgroundBaseColor = normalizeHexColor(
+                selectedTextElement.backgroundColor,
+              );
+              const labelBackgroundAlpha = extractAlpha(
+                selectedTextElement.backgroundColor,
+              );
+              const labelBackgroundTransparencyPercent = Math.round(
+                (1 - labelBackgroundAlpha) * 100,
+              );
+
+              return (
+                <>
             <PropertyRow label="Fuente">
               <select
                 aria-label="Fuente"
@@ -559,6 +684,129 @@ export function InspectorPanel() {
               </span>
             </PropertyRow>
 
+            <PropertyRow label="Etiqueta">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-[#9ca3af]">
+                <input
+                  aria-label="Etiqueta texto"
+                  checked={labelEnabled}
+                  className="h-4 w-4 accent-[#6366f1]"
+                  onChange={(event) =>
+                    updateSelectedProperty(
+                      "backgroundColor",
+                      event.target.checked
+                        ? withAlphaHex(
+                            labelEnabled ? labelBackgroundBaseColor : "#1f2937",
+                            labelEnabled ? labelBackgroundAlpha : 1,
+                          )
+                        : "#00000000",
+                    )
+                  }
+                  type="checkbox"
+                />
+                Activar etiqueta
+              </label>
+            </PropertyRow>
+
+            {labelEnabled && (
+              <>
+                <PropertyRow label="Fondo etiqueta">
+                  <input
+                    aria-label="Color fondo etiqueta"
+                    className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
+                    onChange={(event) =>
+                      updateSelectedProperty(
+                        "backgroundColor",
+                        withAlphaHex(
+                          event.target.value,
+                          labelBackgroundAlpha,
+                        ),
+                      )
+                    }
+                    type="color"
+                    value={labelBackgroundBaseColor}
+                  />
+                  <input
+                    aria-label="Codigo color fondo etiqueta"
+                    className={`${inputClassName} w-[90px] text-right tabular-nums`}
+                    onChange={(event) =>
+                      updateSelectedProperty(
+                        "backgroundColor",
+                        withAlphaHex(
+                          event.target.value,
+                          labelBackgroundAlpha,
+                        ),
+                      )
+                    }
+                    value={labelBackgroundBaseColor}
+                  />
+                </PropertyRow>
+
+                <PropertyRow label="Transparencia">
+                  <input
+                    aria-label="Transparencia fondo etiqueta"
+                    className="w-full"
+                    max={100}
+                    min={0}
+                    onChange={(event) => {
+                      const nextPercent = Number(event.target.value);
+                      if (!Number.isFinite(nextPercent)) {
+                        return;
+                      }
+                      const safePercent = clamp(nextPercent, 0, 100);
+                      const nextAlpha = 1 - safePercent / 100;
+                      updateSelectedProperty(
+                        "backgroundColor",
+                        withAlphaHex(labelBackgroundBaseColor, nextAlpha),
+                      );
+                    }}
+                    step={1}
+                    type="range"
+                    value={labelBackgroundTransparencyPercent}
+                  />
+                  <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                    {labelBackgroundTransparencyPercent}%
+                  </span>
+                </PropertyRow>
+
+                <PropertyRow label="Borde: Grosor">
+                  <NumericField
+                    ariaLabel="Grosor borde etiqueta"
+                    min={0}
+                    onValueChange={(nextValue) =>
+                      updateSelectedProperty(
+                        "labelBorderWidth",
+                        Math.max(0, nextValue),
+                      )
+                    }
+                    step={1}
+                    value={selectedTextElement.labelBorderWidth ?? 1}
+                    widthClassName="w-[62px]"
+                  />
+                  <span className="w-4 text-[10px] text-[#6b7280]">px</span>
+                </PropertyRow>
+
+                <PropertyRow label="Borde: Color">
+                  <input
+                    aria-label="Color borde etiqueta"
+                    className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
+                    onChange={(event) =>
+                      updateSelectedProperty("labelBorderColor", event.target.value)
+                    }
+                    type="color"
+                    value={selectedTextElement.labelBorderColor ?? "#ffffff"}
+                  />
+                  <input
+                    aria-label="Codigo color borde etiqueta"
+                    className={`${inputClassName} w-[90px] text-right tabular-nums`}
+                    onChange={(event) =>
+                      updateSelectedProperty("labelBorderColor", event.target.value)
+                    }
+                    value={selectedTextElement.labelBorderColor ?? "#ffffff"}
+                  />
+                </PropertyRow>
+              </>
+            )}
+
             {renderEffectsSelector(selectedTextElement.id)}
 
             <div className="pt-1">
@@ -578,6 +826,9 @@ export function InspectorPanel() {
                 value={selectedTextElement.text}
               />
             </div>
+                </>
+              );
+            })()}
           </PropertySection>
         ) : selectedImageElement ? (
           <PropertySection
@@ -1059,6 +1310,35 @@ export function InspectorPanel() {
                 value={selectedShapeElement.fillColor}
               />
             </PropertyRow>
+
+            {selectedShapeElement.shapeType === "rectangle" && (
+              <PropertyRow label="Esquinas">
+                <input
+                  aria-label="Esquinas redondeadas"
+                  className="w-full"
+                  max={100}
+                  min={0}
+                  onChange={(event) => {
+                    const nextPercent = Number(event.target.value);
+                    if (!Number.isFinite(nextPercent)) {
+                      return;
+                    }
+
+                    const safePercent = clamp(nextPercent, 0, 100);
+                    const nextCornerRadius =
+                      shapeCornerPercentToRadiusRatio(safePercent) *
+                      selectedShapeMaxCornerRadius;
+                    updateSelectedProperty("cornerRadius", nextCornerRadius);
+                  }}
+                  step={1}
+                  type="range"
+                  value={selectedShapeCornerRadiusPercent}
+                />
+                <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                  {selectedShapeCornerRadiusPercent}%
+                </span>
+              </PropertyRow>
+            )}
 
             <PropertyRow label="Opacidad">
               <input

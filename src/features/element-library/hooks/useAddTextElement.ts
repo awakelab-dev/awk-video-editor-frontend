@@ -101,6 +101,8 @@ function buildTextElement(
     fontWeight: config.fontWeight,
     textColor: '#ffffff',
     backgroundColor: config.backgroundColor,
+    labelBorderColor: '#ffffff',
+    labelBorderWidth: 1,
     lineHeight: 1.1,
     letterSpacing: 0,
     textAlign: config.textAlign,

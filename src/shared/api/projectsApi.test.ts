@@ -5,6 +5,7 @@ import {
   createElementInProjectTrack,
   loadApiProjectIntoStore,
   loadInitialEditorStateIntoStore,
+  updateProject,
   type InitialEditorState,
 } from './projectsApi'
 import type { TextElement } from '../types/editor'
@@ -324,5 +325,31 @@ describe('projectsApi hydration', () => {
     expect(createCall?.[0]).toBe('https://api.example.test/api/v1/projects/project-1/elements?trackId=track-text')
     expect(createBody).not.toHaveProperty('trackId')
     expect(useEditorStore.getState().revision).toBe(2)
+  })
+
+  it('updates project metadata', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('https://api.example.test/api/v1/projects/project-1')
+      expect(init?.method).toBe('PATCH')
+      expect(JSON.parse(String(init?.body))).toEqual({ name: 'Proyecto renombrado' })
+
+      return jsonResponse({
+        data: {
+          projectId: 'project-1',
+          name: 'Proyecto renombrado',
+          duration: 10,
+          resolution: { w: 1920, h: 1080 },
+          revision: 3,
+          updatedAt: '2026-05-19T10:00:00.000Z',
+          createdAt: '2026-05-18T10:00:00.000Z',
+        },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const project = await updateProject('project-1', { name: 'Proyecto renombrado' })
+
+    expect(project.name).toBe('Proyecto renombrado')
+    expect(project.revision).toBe(3)
   })
 })

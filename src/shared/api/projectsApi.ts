@@ -32,6 +32,10 @@ export type CreateProjectPayload = {
   }
 }
 
+export type UpdateProjectPayload = {
+  name?: string
+}
+
 export type ApiProject = {
   projectId: string
   name: string
@@ -895,6 +899,24 @@ async function getProjectDocument(projectId: string): Promise<unknown> {
 
 export async function getProject(projectId: string): Promise<ApiProject | null> {
   return normalizeApiProject(await getProjectDocument(projectId))
+}
+
+export async function updateProject(projectId: string, payload: UpdateProjectPayload): Promise<ApiProject> {
+  const body = await fetchJson(`${PROJECTS_PATH}/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = unwrapData(body)
+  const project = normalizeApiProject(isRecord(data) && isRecord(data.project) ? data.project : data)
+
+  if (!project) {
+    throw new ProjectsApiError('La API no devolvio metadatos validos para el proyecto actualizado.')
+  }
+
+  return project
 }
 
 export async function getProjectEditorState(projectId: string): Promise<InitialEditorState> {

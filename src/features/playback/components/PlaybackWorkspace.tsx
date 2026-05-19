@@ -35,33 +35,62 @@ function buildBaseVisualStyle(
   }
 }
 
+function isTransparentColor(value: string | undefined) {
+  if (!value) {
+    return true
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return (
+    normalized === 'transparent' ||
+    normalized === '#0000' ||
+    normalized === '#00000000' ||
+    normalized === 'rgba(0,0,0,0)' ||
+    normalized === 'rgba(0, 0, 0, 0)'
+  )
+}
+
 function buildTextElementStyle(
   element: TextElement,
   resolution: { w: number; h: number },
   previewScale: number,
   zIndex: number,
 ): CSSProperties {
+  const hasLabelBackground = !isTransparentColor(element.backgroundColor)
+  const labelBorderWidth = Math.max(0, element.labelBorderWidth ?? 1)
+  const baseJustifyContent =
+    element.textAlign === 'left'
+      ? 'flex-start'
+      : element.textAlign === 'right'
+        ? 'flex-end'
+        : 'center'
+
   return {
     ...buildBaseVisualStyle(element, resolution, zIndex),
+    width: hasLabelBackground ? 'max-content' : undefined,
+    height: hasLabelBackground ? 'auto' : undefined,
     color: element.textColor,
-    backgroundColor: element.backgroundColor,
+    backgroundColor: hasLabelBackground ? element.backgroundColor : 'transparent',
+    borderRadius: hasLabelBackground ? `${9999 * previewScale}px` : '0px',
+    border: hasLabelBackground
+      ? labelBorderWidth <= 0
+        ? 'none'
+        : `${Math.max(0.5, labelBorderWidth * previewScale)}px solid ${element.labelBorderColor ?? '#ffffff'}`
+      : 'none',
     fontFamily: element.fontFamily,
     fontSize: `${element.fontSize * previewScale}px`,
     fontWeight: element.fontWeight,
     lineHeight: element.lineHeight,
     letterSpacing: `${element.letterSpacing * previewScale}px`,
-    textAlign: element.textAlign,
+    textAlign: hasLabelBackground ? 'center' : element.textAlign,
     whiteSpace: 'pre-wrap',
     overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
-    justifyContent:
-      element.textAlign === 'left'
-        ? 'flex-start'
-        : element.textAlign === 'right'
-          ? 'flex-end'
-          : 'center',
-    padding: `${4 * previewScale}px ${8 * previewScale}px`,
+    justifyContent: hasLabelBackground ? 'center' : baseJustifyContent,
+    padding: hasLabelBackground
+      ? `${5 * previewScale}px ${14 * previewScale}px`
+      : `${4 * previewScale}px ${8 * previewScale}px`,
     textShadow: `0 ${2 * previewScale}px ${6 * previewScale}px rgba(0,0,0,0.55)`,
   }
 }
