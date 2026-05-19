@@ -416,6 +416,14 @@ export function InspectorPanel() {
     (state) => state.updateElementProperty,
   );
   const [isSlideTextSettingsOpen, setIsSlideTextSettingsOpen] = useState(false);
+  const [editorTheme, setEditorTheme] = useState<"dark" | "light">(() => {
+    if (typeof document === "undefined") {
+      return "dark";
+    }
+    return document.documentElement.dataset.editorTheme === "light"
+      ? "light"
+      : "dark";
+  });
   const slideTextSettingsPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const selectedElementContext = useMemo(
@@ -444,6 +452,15 @@ export function InspectorPanel() {
     ? shapeCornerRadiusRatioToPercent(
         selectedShapeElement.cornerRadius / selectedShapeMaxCornerRadius,
       )
+    : 0;
+  const selectedShapeFillBaseColor = selectedShapeElement
+    ? normalizeHexColor(selectedShapeElement.fillColor)
+    : "#1f2937";
+  const selectedShapeFillAlphaPercent = selectedShapeElement
+    ? Math.round(extractAlpha(selectedShapeElement.fillColor) * 100)
+    : 100;
+  const selectedShapeFillTransparencyPercent = selectedShapeElement
+    ? 100 - selectedShapeFillAlphaPercent
     : 0;
   const isSquareElement =
     selectedShapeElement?.shapeType === "rectangle"
@@ -543,6 +560,31 @@ export function InspectorPanel() {
       window.removeEventListener("mousedown", handlePointerDown);
     };
   }, [isSlideTextSettingsOpen]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const htmlElement = document.documentElement;
+    const syncTheme = () => {
+      setEditorTheme(
+        htmlElement.dataset.editorTheme === "light" ? "light" : "dark",
+      );
+    };
+
+    syncTheme();
+
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(htmlElement, {
+      attributes: true,
+      attributeFilter: ["data-editor-theme"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const isLightTheme = editorTheme === "light";
 
   const renderEffectsSelector = (elementId: string) => {
     const selectedEffect =
@@ -1469,10 +1511,16 @@ export function InspectorPanel() {
                 aria-label="Relleno"
                 className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-[4px] border border-[#35353f] bg-transparent p-0"
                 onChange={(event) =>
-                  updateSelectedProperty("fillColor", event.target.value)
+                  updateSelectedProperty(
+                    "fillColor",
+                    withAlphaHex(
+                      event.target.value,
+                      selectedShapeFillAlphaPercent / 100,
+                    ),
+                  )
                 }
                 type="color"
-                value={selectedShapeElement.fillColor}
+                value={selectedShapeFillBaseColor}
               />
               <input
                 aria-label="Codigo relleno"
@@ -1482,6 +1530,34 @@ export function InspectorPanel() {
                 }
                 value={selectedShapeElement.fillColor}
               />
+            </PropertyRow>
+
+            <PropertyRow label="Transparencia relleno">
+              <input
+                aria-label="Transparencia relleno"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => {
+                  const nextPercent = Number(event.target.value);
+                  if (!Number.isFinite(nextPercent)) {
+                    return;
+                  }
+
+                  const safeTransparency = clamp(nextPercent, 0, 100);
+                  const nextAlpha = 1 - safeTransparency / 100;
+                  updateSelectedProperty(
+                    "fillColor",
+                    withAlphaHex(selectedShapeFillBaseColor, nextAlpha),
+                  );
+                }}
+                step={1}
+                type="range"
+                value={selectedShapeFillTransparencyPercent}
+              />
+              <span className="min-w-8 text-right text-[11px] tabular-nums text-[#9ca3af]">
+                {selectedShapeFillTransparencyPercent}%
+              </span>
             </PropertyRow>
 
             {selectedShapeElement.shapeType === "rectangle" && (
@@ -1541,18 +1617,38 @@ export function InspectorPanel() {
 
             {renderEffectsSelector(selectedShapeElement.id)}
 
-            <div className="mt-2 rounded-[6px] border border-[#2a2a34] bg-[#202028] p-2.5">
+            <div
+              className={`mt-2 rounded-[6px] border p-2.5 ${
+                isLightTheme
+                  ? "border-[#d7dee8] bg-[#f3f6fb]"
+                  : "border-[#2a2a34] bg-[#202028]"
+              }`}
+            >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[#9ca3af]">
+                <span
+                  className={`text-[11px] font-medium ${
+                    isLightTheme ? "text-[#475569]" : "text-[#9ca3af]"
+                  }`}
+                >
                   Vista de la forma
                 </span>
-                <div className="flex items-center gap-1.5 text-[11px] text-[#9ca3af]">
+                <div
+                  className={`flex items-center gap-1.5 text-[11px] ${
+                    isLightTheme ? "text-[#475569]" : "text-[#9ca3af]"
+                  }`}
+                >
                   <RotateCw className="h-[13px] w-[13px]" />
                   <span>{Math.round(selectedShapeElement.rotation)}°</span>
                 </div>
               </div>
 
-              <div className="mb-2.5 flex h-[110px] items-center justify-center rounded-[6px] border border-[#2a2a34] bg-[#16161c]">
+              <div
+                className={`mb-2.5 flex h-[110px] items-center justify-center rounded-[6px] border ${
+                  isLightTheme
+                    ? "border-[#d7dee8] bg-[#ffffff]"
+                    : "border-[#2a2a34] bg-[#16161c]"
+                }`}
+              >
                 <div
                   data-testid="inspector-shape-preview"
                   style={buildShapePreviewStyle(selectedShapeElement)}
@@ -1560,7 +1656,11 @@ export function InspectorPanel() {
               </div>
 
               <div className="flex items-center gap-2">
-                <RotateCw className="h-[14px] w-[14px] text-[#7f8695]" />
+                <RotateCw
+                  className={`h-[14px] w-[14px] ${
+                    isLightTheme ? "text-[#64748b]" : "text-[#7f8695]"
+                  }`}
+                />
                 <input
                   aria-label="Rotación forma"
                   className="w-full"

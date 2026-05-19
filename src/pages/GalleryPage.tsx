@@ -49,6 +49,7 @@ type FrameElementContext = {
 
 type ProjectFilter = "all" | PresentationProjectStatus;
 type ViewMode = "grid" | "list";
+type EditorTheme = "dark" | "light";
 type SubjectFolder = {
   name: string;
   themes: string[];
@@ -62,6 +63,7 @@ const filterOptions: { id: ProjectFilter; label: string }[] = [
 ];
 
 const SUBJECT_FOLDERS_STORAGE_KEY = "awk:gallery-subject-folders";
+const EDITOR_THEME_STORAGE_KEY = "awk:editor-theme";
 
 const defaultSubjectFolders: SubjectFolder[] = [
   {
@@ -322,10 +324,12 @@ interface ProjectCardProps {
   viewMode: ViewMode;
   isDarkMode: boolean;
   canManage: boolean;
+  availableSubjects: string[];
   onLoad: (id: string) => void;
   formatDuration: (seconds: number) => string;
   formatDate: (isoDate: string) => string;
   onRename: (id: string, newName: string) => void;
+  onMoveToSubject: (id: string, subjectName: string) => void;
 }
 
 function ProjectCard({
@@ -333,13 +337,16 @@ function ProjectCard({
   viewMode,
   isDarkMode,
   canManage,
+  availableSubjects,
   onLoad,
   formatDuration,
   formatDate,
   onRename,
+  onMoveToSubject,
 }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMoveToOpen, setIsMoveToOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(project.name);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -355,6 +362,7 @@ function ProjectCard({
       if (!menuRef.current) return;
       if (!menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
+        setIsMoveToOpen(false);
       }
     };
 
@@ -546,6 +554,7 @@ function ProjectCard({
             onClick={(event) => {
               event.stopPropagation();
               setIsMenuOpen((current) => !current);
+              setIsMoveToOpen(false);
             }}
             type="button"
           >
@@ -570,6 +579,7 @@ function ProjectCard({
                 onClick={(event) => {
                   event.stopPropagation();
                   setIsMenuOpen(false);
+                  setIsMoveToOpen(false);
                   setIsEditingName(true);
                   setEditName(project.name);
                 }}
@@ -578,6 +588,61 @@ function ProjectCard({
                 <Pencil className="h-3.5 w-3.5" />
                 Renombrar
               </button>
+              <div className="relative">
+                <button
+                  className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition ${
+                    isDarkMode
+                      ? "text-[#d1d5db] hover:bg-[#25252e]"
+                      : "text-[#334155] hover:bg-[#f8faff]"
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsMoveToOpen((current) => !current);
+                  }}
+                  type="button"
+                >
+                  <span>Mover a</span>
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 transition-transform ${isMoveToOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {isMoveToOpen ? (
+                  <div
+                    className={`absolute left-full top-0 z-40 ml-1.5 w-44 max-h-40 overflow-y-auto rounded-md border p-1 shadow-[0_8px_24px_rgba(0,0,0,0.18)] ${
+                      isDarkMode
+                        ? "border-[#2a2a34] bg-[#13131a]"
+                        : "border-[#d5dbe8] bg-[#f8faff]"
+                    }`}
+                  >
+                    {availableSubjects.length > 0 ? (
+                      availableSubjects.map((subjectName) => (
+                        <button
+                          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] transition ${
+                            isDarkMode
+                              ? "text-[#cbd5e1] hover:bg-[#25252e]"
+                              : "text-[#475569] hover:bg-[#eef2ff]"
+                          }`}
+                          key={subjectName}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onMoveToSubject(project.id, subjectName);
+                            setIsMoveToOpen(false);
+                            setIsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 text-[#93c5fd]" />
+                          {subjectName}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-2 py-1 text-[11px] text-[#94a3b8]">
+                        No hay asignaturas
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
@@ -589,7 +654,9 @@ function ProjectCard({
     return (
       <article
         aria-label={`Cargar proyecto ${project.name}`}
-        className={`transform-gpu cursor-pointer overflow-hidden rounded-xl border transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 ${
+        className={`relative transform-gpu cursor-pointer overflow-visible rounded-xl border transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 ${
+          isMenuOpen ? "z-50" : "z-10 hover:z-20"
+        } ${
           isDarkMode
             ? "border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:ring-offset-[#0d0d11]"
             : "border-[#d5dbe8] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:border-[#c7d2e5] hover:bg-[#f8faff] hover:shadow-[0_14px_30px_rgba(15,23,42,0.12)] focus-visible:ring-offset-[#f3f5fb]"
@@ -604,7 +671,6 @@ function ProjectCard({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => {
           setIsHovered(false);
-          setIsMenuOpen(false);
         }}
         role="button"
         tabIndex={0}
@@ -664,7 +730,9 @@ function ProjectCard({
   return (
     <article
       aria-label={`Cargar proyecto ${project.name}`}
-      className={`transform-gpu cursor-pointer overflow-hidden rounded-xl border transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 ${
+      className={`relative transform-gpu cursor-pointer overflow-visible rounded-xl border transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]/70 focus-visible:ring-offset-2 ${
+        isMenuOpen ? "z-50" : "z-10 hover:z-20"
+      } ${
         isDarkMode
           ? "border-[#2a2a34] bg-[#16161d] shadow-[0_8px_24px_rgba(0,0,0,0.35)] hover:border-[#4a4a5a] hover:bg-[#191924] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)] focus-visible:ring-offset-[#0d0d11]"
           : "border-[#d5dbe8] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:border-[#c7d2e5] hover:bg-[#f8faff] hover:shadow-[0_14px_30px_rgba(15,23,42,0.12)] focus-visible:ring-offset-[#f3f5fb]"
@@ -679,7 +747,6 @@ function ProjectCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
-        setIsMenuOpen(false);
       }}
       role="button"
       tabIndex={0}
@@ -748,7 +815,16 @@ export function GalleryPage() {
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(
     null,
   );
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    const savedTheme = localStorage.getItem(
+      EDITOR_THEME_STORAGE_KEY,
+    ) as EditorTheme | null;
+    return savedTheme !== "light";
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
@@ -769,8 +845,8 @@ export function GalleryPage() {
   const [expandedSubjects, setExpandedSubjects] = useState<
     Record<string, boolean>
   >(() =>
-    loadSubjectFolders().reduce<Record<string, boolean>>((acc, subject, index) => {
-      acc[subject.name] = index === 0;
+    loadSubjectFolders().reduce<Record<string, boolean>>((acc, subject) => {
+      acc[subject.name] = false;
       return acc;
     }, {}),
   );
@@ -873,6 +949,27 @@ export function GalleryPage() {
     if (renamePresentationProject(projectId, newName)) {
       setRefreshKey((current) => current + 1);
     }
+  };
+
+  const handleMoveProjectToSubject = (projectId: string, subjectName: string) => {
+    const normalizedTarget = normalizeSubjectName(subjectName);
+    const project = presentationProjects.find((item) => item.id === projectId);
+
+    if (!project || !normalizedTarget) {
+      return;
+    }
+
+    const knownSubjectSet = new Set(
+      subjectFolders.map((subject) => normalizeSubjectName(subject.name)),
+    );
+
+    const preservedTags = project.tags.filter(
+      (tag) => !knownSubjectSet.has(normalizeSubjectName(tag)),
+    );
+
+    project.tags = [subjectName, ...preservedTags];
+    project.lastEditedAt = new Date().toISOString();
+    setRefreshKey((current) => current + 1);
   };
 
   const handleCreateNewProject = () => {
@@ -985,8 +1082,8 @@ export function GalleryPage() {
     setExpandedSubjects((prev) => {
       const nextState: Record<string, boolean> = {};
 
-      subjectFolders.forEach((subject, index) => {
-        nextState[subject.name] = prev[subject.name] ?? index === 0;
+      subjectFolders.forEach((subject) => {
+        nextState[subject.name] = prev[subject.name] ?? false;
       });
 
       return nextState;
@@ -1025,6 +1122,11 @@ export function GalleryPage() {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [isUserMenuOpen]);
+
+  useEffect(() => {
+    const theme: EditorTheme = isDarkMode ? "dark" : "light";
+    localStorage.setItem(EDITOR_THEME_STORAGE_KEY, theme);
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (!subjectContextMenu) {
@@ -1516,6 +1618,7 @@ export function GalleryPage() {
                 {visibleProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
+                    availableSubjects={subjectFolders.map((subject) => subject.name)}
                     project={project}
                     viewMode={viewMode}
                     isDarkMode={isDarkMode}
@@ -1524,6 +1627,7 @@ export function GalleryPage() {
                     formatDuration={formatDuration}
                     formatDate={formatDate}
                     onRename={handleRenameProject}
+                    onMoveToSubject={handleMoveProjectToSubject}
                   />
                 ))}
               </div>
