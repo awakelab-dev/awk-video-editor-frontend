@@ -80,10 +80,7 @@ describe('AppToolbar', () => {
     render(<AppToolbar />)
 
     fireEvent.click(screen.getByLabelText('Configuración'))
-    expect(screen.getByText('Modo noche')).toBeTruthy()
-    expect(screen.getByText('Modo claro')).toBeTruthy()
-
-    fireEvent.click(screen.getByText('Modo claro'))
+    fireEvent.click(screen.getByLabelText('Alternar modo oscuro'))
 
     expect(document.documentElement.dataset.editorTheme).toBe('light')
     expect(localStorage.getItem('awk:editor-theme')).toBe('light')

@@ -13,6 +13,7 @@ import {
   PanelsTopLeft,
   Pencil,
   Play,
+  Plus,
   Settings,
   Share2,
   SquareLibrary,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
   useRef,
@@ -47,6 +49,10 @@ type FrameElementContext = {
 
 type ProjectFilter = "all" | PresentationProjectStatus;
 type ViewMode = "grid" | "list";
+type SubjectFolder = {
+  name: string;
+  themes: string[];
+};
 
 const filterOptions: { id: ProjectFilter; label: string }[] = [
   { id: "all", label: "Todos" },
@@ -55,7 +61,9 @@ const filterOptions: { id: ProjectFilter; label: string }[] = [
   { id: "published", label: "Publicados" },
 ];
 
-const subjectFolders = [
+const SUBJECT_FOLDERS_STORAGE_KEY = "awk:gallery-subject-folders";
+
+const defaultSubjectFolders: SubjectFolder[] = [
   {
     name: "Matematicas",
     themes: ["Tema 1", "Tema 2", "Tema 3", "Tema 4"],
@@ -72,7 +80,77 @@ const subjectFolders = [
     name: "Ciencias",
     themes: ["Tema 1", "Tema 2", "Tema 3", "Tema 4"],
   },
-] as const;
+];
+
+function normalizeSubjectName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function loadSubjectFolders(): SubjectFolder[] {
+  if (typeof window === "undefined") {
+    return defaultSubjectFolders;
+  }
+
+  const raw = localStorage.getItem(SUBJECT_FOLDERS_STORAGE_KEY);
+  if (!raw) {
+    return defaultSubjectFolders;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return defaultSubjectFolders;
+    }
+
+    const hasThemesShape = parsed.every(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        typeof (item as { name?: unknown }).name === "string" &&
+        Array.isArray((item as { themes?: unknown }).themes),
+    );
+
+    if (hasThemesShape) {
+      const validSubjects = parsed
+        .map((item) => {
+          const name = (item as { name: string }).name.trim();
+          const themes = (item as { themes: unknown[] }).themes.filter(
+            (theme): theme is string => typeof theme === "string",
+          );
+          return { name, themes };
+        })
+        .filter((item) => item.name.length > 0);
+
+      if (validSubjects.length > 0) {
+        return validSubjects;
+      }
+    }
+
+    // Legacy shape compatibility: array of custom { name } subjects.
+    const defaultNameSet = new Set(
+      defaultSubjectFolders.map((subject) =>
+        normalizeSubjectName(subject.name),
+      ),
+    );
+    const customSubjects = parsed
+      .filter(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          typeof (item as { name?: unknown }).name === "string",
+      )
+      .map((item) => (item as { name: string }).name.trim())
+      .filter(
+        (name) =>
+          name.length > 0 && !defaultNameSet.has(normalizeSubjectName(name)),
+      )
+      .map((name) => ({ name, themes: [] as string[] }));
+
+    return [...defaultSubjectFolders, ...customSubjects];
+  } catch {
+    return defaultSubjectFolders;
+  }
+}
 
 function isElementActiveAtTime(
   element: EditorElement,
@@ -659,10 +737,14 @@ export function GalleryPage() {
     navigate("/login", { replace: true });
   };
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const subjectMenuRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [subjectFolders, setSubjectFolders] = useState<SubjectFolder[]>(() =>
+    loadSubjectFolders(),
+  );
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(
     null,
   );
@@ -670,20 +752,34 @@ export function GalleryPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [subjectContextMenu, setSubjectContextMenu] = useState<{
+    subjectName: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [subjectPendingDelete, setSubjectPendingDelete] = useState<
+    string | null
+  >(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectSubject, setNewProjectSubject] = useState<string>(
-    subjectFolders[0].name,
+    () => loadSubjectFolders()[0]?.name ?? "General",
   );
   const [expandedSubjects, setExpandedSubjects] = useState<
     Record<string, boolean>
-  >({
-    Matematicas: true,
-    Lengua: false,
-    Historia: false,
-    Ciencias: false,
-  });
+  >(() =>
+    loadSubjectFolders().reduce<Record<string, boolean>>((acc, subject, index) => {
+      acc[subject.name] = index === 0;
+      return acc;
+    }, {}),
+  );
   const classroomThemeProjects = useMemo<PresentationProject[]>(() => {
     const baseProject = presentationProjects[0];
+    if (!baseProject) {
+      return [];
+    }
+
     const nowIso = new Date().toISOString();
 
     return subjectFolders.flatMap((subject) =>
@@ -703,7 +799,7 @@ export function GalleryPage() {
         assets: [],
       })),
     );
-  }, []);
+  }, [subjectFolders]);
 
   const allGalleryProjects = useMemo(
     () => [...presentationProjects, ...classroomThemeProjects],
@@ -815,6 +911,102 @@ export function GalleryPage() {
     });
   };
 
+  const handleCreateSubject = () => {
+    const trimmedName = newSubjectName.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    const normalizedName = normalizeSubjectName(trimmedName);
+    const alreadyExists = subjectFolders.some(
+      (subject) => normalizeSubjectName(subject.name) === normalizedName,
+    );
+
+    if (alreadyExists) {
+      return;
+    }
+
+    setSubjectFolders((prev) => [...prev, { name: trimmedName, themes: [] }]);
+    setNewProjectSubject(trimmedName);
+    setActiveSubjectFilter(trimmedName);
+    setExpandedSubjects((prev) => ({ ...prev, [trimmedName]: true }));
+    setNewSubjectName("");
+    setIsCreateSubjectOpen(false);
+  };
+
+  const handleSubjectContextMenu = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    subjectName: string,
+  ) => {
+    event.preventDefault();
+    setSubjectContextMenu({
+      subjectName,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+
+  const handleConfirmDeleteSubject = () => {
+    if (!subjectPendingDelete || subjectFolders.length <= 1) {
+      setSubjectPendingDelete(null);
+      return;
+    }
+
+    const remainingSubjects = subjectFolders.filter(
+      (subject) => subject.name !== subjectPendingDelete,
+    );
+
+    setSubjectFolders(remainingSubjects);
+    setExpandedSubjects((prev) => {
+      const next = { ...prev };
+      delete next[subjectPendingDelete];
+      return next;
+    });
+
+    if (activeSubjectFilter === subjectPendingDelete) {
+      setActiveSubjectFilter(null);
+    }
+
+    if (newProjectSubject === subjectPendingDelete) {
+      setNewProjectSubject(remainingSubjects[0]?.name ?? "General");
+    }
+
+    setSubjectPendingDelete(null);
+  };
+
+  useEffect(() => {
+    localStorage.setItem(
+      SUBJECT_FOLDERS_STORAGE_KEY,
+      JSON.stringify(subjectFolders),
+    );
+  }, [subjectFolders]);
+
+  useEffect(() => {
+    setExpandedSubjects((prev) => {
+      const nextState: Record<string, boolean> = {};
+
+      subjectFolders.forEach((subject, index) => {
+        nextState[subject.name] = prev[subject.name] ?? index === 0;
+      });
+
+      return nextState;
+    });
+  }, [subjectFolders]);
+
+  useEffect(() => {
+    if (subjectFolders.length === 0) {
+      return;
+    }
+
+    const stillExists = subjectFolders.some(
+      (subject) => subject.name === newProjectSubject,
+    );
+
+    if (!stillExists) {
+      setNewProjectSubject(subjectFolders[0].name);
+    }
+  }, [newProjectSubject, subjectFolders]);
+
   useEffect(() => {
     if (!isUserMenuOpen) {
       return;
@@ -833,6 +1025,25 @@ export function GalleryPage() {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [isUserMenuOpen]);
+
+  useEffect(() => {
+    if (!subjectContextMenu) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!subjectMenuRef.current) {
+        return;
+      }
+
+      if (!subjectMenuRef.current.contains(event.target as Node)) {
+        setSubjectContextMenu(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [subjectContextMenu]);
 
   return (
     <main
@@ -964,7 +1175,7 @@ export function GalleryPage() {
             <p
               className={`px-2 text-[11px] uppercase tracking-wide ${isDarkMode ? "text-[#8b93a7]" : "text-[#64748b]"}`}
             >
-              Archivos
+              Asignaturas
             </p>
             <div className="mt-2 space-y-2">
               {subjectFolders.map((subject) => {
@@ -983,6 +1194,9 @@ export function GalleryPage() {
                             ? "border-transparent text-[#d4d8e4] hover:bg-[#1a1a24]"
                             : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
                       }`}
+                      onContextMenu={(event) =>
+                        handleSubjectContextMenu(event, subject.name)
+                      }
                       onClick={() => toggleSubject(subject.name)}
                       type="button"
                     >
@@ -1012,11 +1226,84 @@ export function GalleryPage() {
                             {theme}
                           </button>
                         ))}
+                        {subject.themes.length === 0 ? (
+                          <p
+                            className={`px-2 py-1 text-[11px] ${isDarkMode ? "text-[#6b7280]" : "text-[#94a3b8]"}`}
+                          >
+                            Sin temas aun
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
                 );
               })}
+
+              <div className="pt-1">
+                {isCreateSubjectOpen ? (
+                  <div
+                    className={`space-y-2 rounded-md border p-2 ${
+                      isDarkMode
+                        ? "border-[#2a2a34] bg-[#11111a]"
+                        : "border-[#dbe3f1] bg-[#f8faff]"
+                    }`}
+                  >
+                    <input
+                      className={`w-full rounded-md border px-2 py-1.5 text-xs outline-none transition focus:border-[#6366f1] ${
+                        isDarkMode
+                          ? "border-[#2a2a34] bg-[#0f0f14] text-[#f0f0f4]"
+                          : "border-[#d5dbe8] bg-white text-[#111827]"
+                      }`}
+                      onChange={(event) => setNewSubjectName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCreateSubject();
+                        }
+                      }}
+                      placeholder="Nombre de asignatura"
+                      type="text"
+                      value={newSubjectName}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-1 rounded-md border border-[#4f46e5] bg-[#6366f1] px-2 py-1.5 text-xs font-medium text-white transition hover:bg-[#818cf8]"
+                        onClick={handleCreateSubject}
+                        type="button"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        className={`rounded-md border px-2 py-1.5 text-xs transition ${
+                          isDarkMode
+                            ? "border-[#35353f] bg-[#25252e] text-[#f0f0f4] hover:bg-[#2e2e38]"
+                            : "border-[#d5dbe8] bg-white text-[#334155] hover:bg-[#f8faff]"
+                        }`}
+                        onClick={() => {
+                          setIsCreateSubjectOpen(false);
+                          setNewSubjectName("");
+                        }}
+                        type="button"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs font-medium transition ${
+                      isDarkMode
+                        ? "border-[#3a3a46] text-[#c7cedd] hover:bg-[#1a1a24] hover:text-white"
+                        : "border-[#c7d2e5] text-[#475569] hover:bg-[#eef2ff] hover:text-[#1e293b]"
+                    }`}
+                    onClick={() => setIsCreateSubjectOpen(true)}
+                    type="button"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Crear asignatura
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1061,7 +1348,7 @@ export function GalleryPage() {
                 >
                   <span
                     className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${
-                      isDarkMode ? "left-[1.35rem]" : "left-0.5"
+                      isDarkMode ? "left-0.5" : "left-[1.35rem]"
                     }`}
                   />
                 </button>
@@ -1274,6 +1561,78 @@ export function GalleryPage() {
           </div>
         </section>
       </section>
+
+      {subjectContextMenu ? (
+        <div
+          className={`fixed z-40 min-w-[180px] rounded-md border p-1 shadow-lg ${
+            isDarkMode ? "border-[#2a2a34] bg-[#15151b]" : "border-[#d5dbe8] bg-white"
+          }`}
+          ref={subjectMenuRef}
+          style={{
+            left: Math.max(8, subjectContextMenu.x),
+            top: Math.max(8, subjectContextMenu.y),
+          }}
+        >
+          <button
+            className={`flex w-full items-center rounded px-3 py-2 text-left text-xs transition ${
+              subjectFolders.length <= 1
+                ? "cursor-not-allowed opacity-50"
+                : isDarkMode
+                  ? "text-[#fca5a5] hover:bg-[#24171b]"
+                  : "text-[#b91c1c] hover:bg-[#fef2f2]"
+            }`}
+            disabled={subjectFolders.length <= 1}
+            onClick={() => {
+              setSubjectPendingDelete(subjectContextMenu.subjectName);
+              setSubjectContextMenu(null);
+            }}
+            type="button"
+          >
+            Eliminar asignatura
+          </button>
+        </div>
+      ) : null}
+
+      {subjectPendingDelete ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 px-4">
+          <div
+            className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${
+              isDarkMode
+                ? "border-[#2a2a34] bg-[#15151b]"
+                : "border-[#d5dbe8] bg-white"
+            }`}
+          >
+            <h3 className="text-base font-semibold">
+              Estas seguro que desea eliminar la asignatura?
+            </h3>
+            <p
+              className={`mt-1 text-sm ${isDarkMode ? "text-[#9ca3af]" : "text-[#64748b]"}`}
+            >
+              {subjectPendingDelete}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className={`rounded-md border px-3 py-2 text-sm transition ${
+                  isDarkMode
+                    ? "border-[#35353f] bg-[#25252e] text-[#f0f0f4] hover:bg-[#2e2e38]"
+                    : "border-[#d5dbe8] bg-white text-[#334155] hover:bg-[#f8faff]"
+                }`}
+                onClick={() => setSubjectPendingDelete(null)}
+                type="button"
+              >
+                No
+              </button>
+              <button
+                className="rounded-md border border-[#ef4444] bg-[#ef4444] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#f87171]"
+                onClick={handleConfirmDeleteSubject}
+                type="button"
+              >
+                Si
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isNewProjectModalOpen ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/45 px-4">
