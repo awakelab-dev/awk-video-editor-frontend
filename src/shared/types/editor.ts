@@ -57,6 +57,8 @@ export type TextElement = VisualElementBase & {
   fontFamily: string
   fontSize: number
   fontWeight: number
+  fontStyle?: 'normal' | 'italic'
+  textDecoration?: 'none' | 'underline'
   textColor: string
   backgroundColor: string
   lineHeight: number

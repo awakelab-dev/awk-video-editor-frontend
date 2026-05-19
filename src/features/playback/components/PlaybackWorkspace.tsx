@@ -80,6 +80,8 @@ function buildTextElementStyle(
     fontFamily: element.fontFamily,
     fontSize: `${element.fontSize * previewScale}px`,
     fontWeight: element.fontWeight,
+    fontStyle: element.fontStyle ?? 'normal',
+    textDecoration: element.textDecoration ?? 'none',
     lineHeight: element.lineHeight,
     letterSpacing: `${element.letterSpacing * previewScale}px`,
     textAlign: hasLabelBackground ? 'center' : element.textAlign,

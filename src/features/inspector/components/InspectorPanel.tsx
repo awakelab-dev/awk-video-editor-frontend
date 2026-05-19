@@ -731,6 +731,42 @@ export function InspectorPanel() {
               </label>
             </PropertyRow>
 
+            <PropertyRow label="Cursiva">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-[#9ca3af]">
+                <input
+                  aria-label="Cursiva texto"
+                  checked={selectedTextElement.fontStyle === "italic"}
+                  className="h-4 w-4 accent-[#6366f1]"
+                  onChange={(event) =>
+                    updateSelectedProperty(
+                      "fontStyle",
+                      event.target.checked ? "italic" : "normal",
+                    )
+                  }
+                  type="checkbox"
+                />
+                Activar cursiva
+              </label>
+            </PropertyRow>
+
+            <PropertyRow label="Subrayado">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-[#9ca3af]">
+                <input
+                  aria-label="Subrayado texto"
+                  checked={selectedTextElement.textDecoration === "underline"}
+                  className="h-4 w-4 accent-[#6366f1]"
+                  onChange={(event) =>
+                    updateSelectedProperty(
+                      "textDecoration",
+                      event.target.checked ? "underline" : "none",
+                    )
+                  }
+                  type="checkbox"
+                />
+                Activar subrayado
+              </label>
+            </PropertyRow>
+
             <PropertyRow label="Color">
               <input
                 aria-label="Color"

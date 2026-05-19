@@ -98,6 +98,8 @@ function buildTextElement(
     fontFamily: 'Inter',
     fontSize: config.fontSize,
     fontWeight: config.fontWeight,
+    fontStyle: 'normal',
+    textDecoration: 'none',
     textColor: '#ffffff',
     backgroundColor: config.backgroundColor,
     labelBorderColor: '#ffffff',
